@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({ subsets: ["latin"] });
+
 export const metadata: Metadata = {
-  title: "Transmuter.ai",
-  description: "Java to TypeScript migration engine",
+  title: "Transmuter.ai — Java to TypeScript Migration Engine",
+  description:
+    "Convert Spring Boot JPA entities to Zod schemas and Prisma models using deterministic AST analysis.",
 };
 
 export default function RootLayout({
@@ -13,7 +17,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-gray-100 min-h-screen">{children}</body>
+      <body
+        className={`${inter.className} bg-gray-950 text-gray-100 min-h-screen antialiased`}
+      >
+        {children}
+      </body>
     </html>
   );
 }
