@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: transmuter
+      POSTGRES_PASSWORD: transmuter
+      POSTGRES_DB: transmuter
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  parser-java:
+    build:
+      context: .
+      dockerfile: docker/parser-java.Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      PARSER_PORT: 4000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      API_PORT: 3000
+      PARSER_URL: http://parser-java:4000
+    depends_on:
+      parser-java:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
