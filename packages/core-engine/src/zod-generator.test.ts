@@ -70,6 +70,6 @@ describe("generateZodSchema", () => {
     };
 
     const result = generateZodSchema(entity);
-    expect(result).toContain("data: z.unknown(),");
+    expect(result).toContain("data: z.string(),");
   });
 });

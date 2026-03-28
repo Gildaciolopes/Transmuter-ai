@@ -9,6 +9,7 @@ import {
   generateTsEnum,
   generateDto,
   resolveRelations,
+  flattenInheritance,
   javaPackageToOutputPath,
   ParseResponse,
   ProjectParseResponse,
@@ -74,18 +75,21 @@ export class ConvertService {
       );
     }
 
+    // Flatten @MappedSuperclass fields into child entities
+    const flatResponse = flattenInheritance(projectResponse);
+
     // Resolve JPA relations across the class graph
-    const directives = resolveRelations(projectResponse);
+    const directives = resolveRelations(flatResponse);
 
     // Generate full schema.prisma
-    const prismaSchema = generatePrismaSchema(projectResponse, directives);
+    const prismaSchema = generatePrismaSchema(flatResponse, directives);
 
     // Generate per-class TypeScript files
     const generatedFiles: GeneratedFile[] = [];
     const flaggedItems: FlaggedItem[] = [];
     let converted = 0;
 
-    for (const cls of projectResponse.classes) {
+    for (const cls of flatResponse.classes) {
       try {
         switch (cls.stereotype) {
           case "entity": {
@@ -170,7 +174,7 @@ export class ConvertService {
     }
 
     // Enums
-    for (const enumCls of projectResponse.enums) {
+    for (const enumCls of flatResponse.enums) {
       try {
         const enumPath = javaPackageToOutputPath(
           enumCls.packageName,

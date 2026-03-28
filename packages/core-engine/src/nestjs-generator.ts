@@ -36,8 +36,10 @@ export function generateNestService(cls: ParseResult): string {
  */
 export function generateNestController(cls: ParseResult): string {
   const className = cls.className;
-  // Derive resource name: UserController → user
-  const resource = className.replace(/Controller$/, '').toLowerCase();
+  // Derive resource name: prefer @RequestMapping path, then class name convention
+  const resource = cls.requestMapping
+    ? cls.requestMapping.replace(/^\/?(api\/)?/, '').replace(/\/$/, '')  // strip leading /api/ and trailing /
+    : className.replace(/Controller$/, '').toLowerCase();
   const serviceName = className.replace(/Controller$/, 'Service');
 
   const nestDecorators = new Set<string>(['Controller']);

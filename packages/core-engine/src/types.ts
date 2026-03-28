@@ -42,6 +42,9 @@ export interface ParseResult {
   superClass?: string;
   enumValues?: EnumValue[];
   inheritanceStrategy?: InheritanceStrategy;
+  isMappedSuperclass?: boolean;
+  tableName?: string;
+  requestMapping?: string;
 }
 
 export interface ProjectParseResponse {

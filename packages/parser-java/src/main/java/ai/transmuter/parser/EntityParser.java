@@ -67,6 +67,9 @@ public class EntityParser {
         public String superClass;
         public List<EnumValue> enumValues;
         public String inheritanceStrategy;
+        public boolean isMappedSuperclass;
+        public String tableName;    // from @Table(name = "...")
+        public String requestMapping; // from @RequestMapping("...")
 
         public ParseResult(String className, String packageName, String stereotype,
                            List<FieldInfo> fields, boolean isEntity) {
@@ -203,7 +206,33 @@ public class EntityParser {
         // @MappedSuperclass
         if (clazz.getAnnotationByName("MappedSuperclass").isPresent()) {
             result.stereotype = "entity"; // treated as entity base
+            result.isMappedSuperclass = true;
         }
+
+        // @Table(name = "...")
+        clazz.getAnnotationByName("Table").ifPresent(ann -> {
+            if (ann instanceof NormalAnnotationExpr normalAnn) {
+                for (MemberValuePair pair : normalAnn.getPairs()) {
+                    if (pair.getNameAsString().equals("name")) {
+                        result.tableName = pair.getValue().toString().replace("\"", "");
+                    }
+                }
+            }
+        });
+
+        // @RequestMapping("...") — capture base route for controllers
+        clazz.getAnnotationByName("RequestMapping").ifPresent(ann -> {
+            // Can be @RequestMapping("/path") or @RequestMapping(value="/path")
+            if (ann instanceof com.github.javaparser.ast.expr.SingleMemberAnnotationExpr singleAnn) {
+                result.requestMapping = singleAnn.getMemberValue().toString().replace("\"", "");
+            } else if (ann instanceof NormalAnnotationExpr normalAnn) {
+                for (MemberValuePair pair : normalAnn.getPairs()) {
+                    if (pair.getNameAsString().equals("value") || pair.getNameAsString().equals("path")) {
+                        result.requestMapping = pair.getValue().toString().replace("\"", "");
+                    }
+                }
+            }
+        });
 
         // @Inheritance(strategy=...)
         clazz.getAnnotationByName("Inheritance").ifPresent(ann -> {
@@ -306,10 +335,21 @@ public class EntityParser {
         return type.trim();
     }
 
+    private static final Set<String> NOT_NULL_ANNOTATIONS = new HashSet<>(Arrays.asList(
+            "NotNull", "NotBlank", "NotEmpty"
+    ));
+
     private boolean determineNullability(FieldDeclaration field, List<String> annotations) {
-        // @Id fields with @GeneratedValue are auto-generated
+        // @Id fields with @GeneratedValue are auto-generated (optional on input)
         if (annotations.contains("Id")) {
             return true;
+        }
+
+        // Bean-validation annotations that imply non-null
+        for (String ann : annotations) {
+            if (NOT_NULL_ANNOTATIONS.contains(ann)) {
+                return false;
+            }
         }
 
         // Check @Column(nullable = false)

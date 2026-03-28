@@ -31,6 +31,21 @@ export function resolveRelations(
       const rel = field.relation;
       const targetClass = rel.targetClass;
 
+      // Unidirectional @OneToMany @JoinColumn (no mappedBy):
+      // The FK lives on the target table but Java doesn't model the reverse field.
+      // Emit a synthetic ManyToOne directive from the target's perspective so
+      // Prisma gets FK columns on the correct (many) side.
+      if (rel.type === 'OneToMany' && !rel.mappedBy) {
+        directives.push({
+          ownerClass: targetClass,                       // e.g. Visit
+          ownerField: lcFirst(cls.className),            // e.g. pet (synthetic)
+          targetClass: cls.className,                    // e.g. Pet
+          relationType: 'ManyToOne',
+          foreignKeyField: buildForeignKeyFieldName(cls.className), // e.g. petId
+        });
+        continue;
+      }
+
       // Only emit a directive from the owning side to avoid duplicates
       if (!rel.isOwning) continue;
 
@@ -68,4 +83,8 @@ export function getDirectivesForClass(
  */
 function buildForeignKeyFieldName(targetClass: string): string {
   return targetClass.charAt(0).toLowerCase() + targetClass.slice(1) + 'Id';
+}
+
+function lcFirst(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
 }

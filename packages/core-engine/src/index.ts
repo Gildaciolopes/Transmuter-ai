@@ -1,4 +1,5 @@
 export { generateZodSchema } from './zod-generator';
+export { flattenInheritance } from './inheritance-flattener';
 export { generatePrismaModel, generatePrismaSchema } from './prisma-generator';
 export { resolveRelations, getDirectivesForClass } from './relation-resolver';
 export { generateNestService, generateNestController, generateNestModule, generateTsEnum } from './nestjs-generator';

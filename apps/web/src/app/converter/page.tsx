@@ -716,7 +716,7 @@ export default function ConverterPage() {
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-10 border-b border-white/[0.04] bg-gray-950/80 backdrop-blur-xl sticky top-0">
+      <nav className="relative z-10 border-b border-white/[0.04] bg-gray-950/80 backdrop-blur-xl top-0">
         <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link

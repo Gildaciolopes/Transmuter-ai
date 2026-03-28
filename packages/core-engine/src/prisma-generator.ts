@@ -32,19 +32,24 @@ export function generatePrismaSchema(
 ): string {
   const parts: string[] = [PRISMA_HEADER];
 
+  // Build set of known enum type names for field type resolution
+  const knownEnums = new Set(response.enums.map((e) => e.className));
+
   // Enums
   for (const enumResult of response.enums) {
     parts.push(renderPrismaEnum(enumResult));
     parts.push('');
   }
 
-  // Entity models (skip non-entities like services, DTOs, etc.)
-  const entities = response.classes.filter((c) => c.isEntity || c.stereotype === 'entity');
+  // Entity models (skip non-entities and @MappedSuperclass — their fields are inlined)
+  const entities = response.classes.filter(
+    (c) => (c.isEntity || c.stereotype === 'entity') && !c.isMappedSuperclass,
+  );
   for (const entity of entities) {
     const entityDirectives = directives.filter(
       (d) => d.ownerClass === entity.className || d.targetClass === entity.className,
     );
-    parts.push(renderEntityModel(entity, entityDirectives));
+    parts.push(renderEntityModel(entity, entityDirectives, knownEnums));
     parts.push('');
   }
 
@@ -65,16 +70,14 @@ function renderPrismaEnum(enumResult: ParseResult): string {
 function renderEntityModel(
   entity: ParseResult,
   directives: PrismaRelationDirective[],
+  knownEnums: Set<string> = new Set(),
 ): string {
   const lines: string[] = [];
 
-  // Check for @Table(name=...) via annotations list (stored as annotation string)
-  // The parser stores annotation names only; @@map would need full attribute parsing.
-  // We add @@map support via the className-based convention if needed.
   lines.push(`model ${entity.className} {`);
 
   // Build all fields to render (scalars + synthesized FKs + relation objects)
-  const fieldRows = buildFieldRows(entity, directives);
+  const fieldRows = buildFieldRows(entity, directives, knownEnums);
 
   // Calculate column widths for alignment
   const maxName = Math.max(...fieldRows.map((r) => r.name.length), 1);
@@ -87,6 +90,11 @@ function renderEntityModel(
     lines.push(`  ${row.name}${namePad}${row.type}${decorStr}`);
   }
 
+  if (entity.tableName) {
+    lines.push('');
+    lines.push(`  @@map("${entity.tableName}")`);
+  }
+
   lines.push('}');
   return lines.join('\n');
 }
@@ -97,7 +105,11 @@ interface FieldRow {
   decorators: string[];
 }
 
-function buildFieldRows(entity: ParseResult, directives: PrismaRelationDirective[]): FieldRow[] {
+function buildFieldRows(
+  entity: ParseResult,
+  directives: PrismaRelationDirective[],
+  knownEnums: Set<string> = new Set(),
+): FieldRow[] {
   const rows: FieldRow[] = [];
 
   // Track which synthetic FK fields we've already added
@@ -110,7 +122,10 @@ function buildFieldRows(entity: ParseResult, directives: PrismaRelationDirective
     // Skip relation fields — they will be rendered separately below
     if (field.relation) continue;
 
-    const prismaType = javaToPrisma[field.type] ?? 'String';
+    // If the field type is a known enum, use it directly in Prisma
+    const prismaType = knownEnums.has(field.type)
+      ? field.type
+      : (javaToPrisma[field.type] ?? 'String');
     const isId = field.annotations.includes('Id');
     const isGenerated = field.annotations.includes('GeneratedValue');
     const nullable = field.nullable && !isId;
