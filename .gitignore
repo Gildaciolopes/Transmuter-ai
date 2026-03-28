@@ -11,3 +11,6 @@ target/
 .DS_Store
 CLAUDE.md
 action-plan.md
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
