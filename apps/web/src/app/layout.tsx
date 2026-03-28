@@ -1,13 +1,23 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Syne, DM_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const syneFont = Syne({
+  subsets: ["latin"],
+  variable: "--font-syne",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Transmuter.ai — Java to TypeScript Migration Engine",
   description:
-    "Convert Spring Boot JPA entities to Zod schemas and Prisma models using deterministic AST analysis.",
+    "Migrate Spring Boot projects to TypeScript/NestJS in minutes. AST-powered conversion of entities, services, controllers, DTOs and enums.",
 };
 
 export default function RootLayout({
@@ -18,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.className} bg-gray-950 text-gray-100 min-h-screen antialiased`}
+        className={`${dmSans.variable} ${syneFont.variable} ${dmSans.className} bg-gray-950 text-gray-100 min-h-screen antialiased`}
       >
         {children}
       </body>
