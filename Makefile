@@ -1,4 +1,4 @@
-.PHONY: dev test build stop clean
+.PHONY: dev test build stop clean build-cli install-cli
 
 # Start all services
 dev:
@@ -23,6 +23,15 @@ build-engine:
 # Stop all services
 stop:
 	docker compose down
+
+# Build CLI (requires parser JAR built first)
+build-cli: build-parser build-engine
+	cp packages/parser-java/target/parser-java-*.jar packages/cli/bin/parser-java.jar
+	cd packages/cli && npx tsc
+
+# Install CLI globally from local build
+install-cli: build-cli
+	cd packages/cli && npm link
 
 # Clean everything
 clean:

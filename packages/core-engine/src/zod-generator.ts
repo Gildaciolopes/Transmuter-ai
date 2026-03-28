@@ -1,5 +1,5 @@
-import { ParseResult } from "./types";
-import { javaToZod } from "./type-map";
+import type { ParseResult } from './types';
+import { javaToZod } from './type-map';
 
 export function generateZodSchema(entity: ParseResult): string {
   const lines: string[] = [];

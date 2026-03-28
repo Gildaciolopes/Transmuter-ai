@@ -1,6 +1,7 @@
 package ai.transmuter.parser;
 
 import com.google.gson.Gson;
+
 import io.javalin.Javalin;
 
 public class ParserServer {
@@ -19,6 +20,7 @@ public class ParserServer {
             ctx.result("{\"status\":\"ok\"}");
         });
 
+        // ── Single-file endpoint (backward compat) ──
         app.post("/parse", ctx -> {
             ParseRequest request = gson.fromJson(ctx.body(), ParseRequest.class);
             if (request == null || request.code == null || request.code.isBlank()) {
@@ -27,6 +29,27 @@ public class ParserServer {
                 return;
             }
             EntityParser.ParseResponse result = parser.parse(request.code);
+            ctx.contentType("application/json");
+            if (result.error != null) {
+                ctx.status(422);
+            }
+            ctx.result(gson.toJson(result));
+        });
+
+        // ── Multi-file project endpoint ──
+        app.post("/parse/project", ctx -> {
+            EntityParser.ProjectParseRequest request =
+                    gson.fromJson(ctx.body(), EntityParser.ProjectParseRequest.class);
+
+            if (request == null || request.files == null || request.files.isEmpty()) {
+                ctx.status(400).contentType("application/json");
+                EntityParser.ProjectParseResponse errResp = new EntityParser.ProjectParseResponse();
+                errResp.error = "Missing 'files' array";
+                ctx.result(gson.toJson(errResp));
+                return;
+            }
+
+            EntityParser.ProjectParseResponse result = parser.parseProject(request.files);
             ctx.contentType("application/json");
             if (result.error != null) {
                 ctx.status(422);

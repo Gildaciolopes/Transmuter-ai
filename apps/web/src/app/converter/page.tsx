@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,12 +15,130 @@ import {
   Sparkles,
   ChevronRight,
   Columns2,
-  Layers,
   Zap,
   Code2,
+  Server,
+  Box,
+  Hash,
+  AlertTriangle,
+  FolderOpen,
+  GitBranch,
 } from "lucide-react";
 
-const SAMPLE_JAVA = `@Entity
+// ─────────── Samples ───────────
+
+const SAMPLES = {
+  fullStack: {
+    label: "Full Stack",
+    hint: "Entity · Service · Controller · DTO · Enum",
+    code: `package com.example.shop.product;
+
+import javax.persistence.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@Entity
+public class Product {
+  @Id
+  @GeneratedValue
+  private Long id;
+
+  @Column(nullable = false)
+  private String name;
+
+  @Column(nullable = false)
+  private Double price;
+
+  private String description;
+
+  @Enumerated
+  private ProductStatus status;
+}
+
+public enum ProductStatus {
+  AVAILABLE, OUT_OF_STOCK, DISCONTINUED
+}
+
+public class CreateProductDto {
+  private String name;
+  private Double price;
+  private String description;
+}
+
+@Service
+public class ProductService {
+  public Product findById(Long id) { return null; }
+  public List<Product> findAll() { return null; }
+}
+
+@RestController
+@RequestMapping("/products")
+public class ProductController {
+  @GetMapping
+  public List<Product> findAll() { return null; }
+
+  @GetMapping("/{id}")
+  public Product findById(@PathVariable Long id) { return null; }
+
+  @PostMapping
+  public Product create(@RequestBody CreateProductDto dto) { return null; }
+
+  @DeleteMapping("/{id}")
+  public void delete(@PathVariable Long id) {}
+}`,
+  },
+  relations: {
+    label: "JPA Relations",
+    hint: "@OneToMany · @ManyToOne between entities",
+    code: `package com.example.order;
+
+import javax.persistence.*;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+public class Customer {
+  @Id
+  @GeneratedValue
+  private Long id;
+
+  @Column(nullable = false)
+  private String name;
+
+  @Column(nullable = false)
+  private String email;
+
+  @OneToMany(mappedBy = "customer")
+  private List<Order> orders;
+}
+
+@Entity
+public class Order {
+  @Id
+  @GeneratedValue
+  private Long id;
+
+  @ManyToOne
+  private Customer customer;
+
+  @Column(nullable = false)
+  private Double total;
+
+  private LocalDateTime createdAt;
+
+  @Enumerated
+  private OrderStatus status;
+}
+
+public enum OrderStatus {
+  PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+}`,
+  },
+  entity: {
+    label: "Entity Only",
+    hint: "Single @Entity with field mapping",
+    code: `@Entity
 public class User {
   @Id
   @GeneratedValue
@@ -30,17 +148,126 @@ public class User {
   private String email;
 
   private Integer age;
-}`;
 
-interface ConvertResultItem {
-  className: string;
-  zod: string;
-  prisma: string;
+  private Boolean active;
+
+  private java.util.UUID externalId;
+}`,
+  },
+} as const;
+
+type SampleKey = keyof typeof SAMPLES;
+
+// ─────────── API types ───────────
+
+type FileType =
+  | "zod"
+  | "nestjs-service"
+  | "nestjs-controller"
+  | "nestjs-module"
+  | "dto"
+  | "enum"
+  | "prisma-schema";
+
+interface GeneratedFile {
+  path: string;
+  content: string;
+  type: FileType;
 }
 
-type OutputTab = "zod" | "prisma";
+interface ProjectResult {
+  prismaSchema: string;
+  files: GeneratedFile[];
+  report: {
+    totalClasses: number;
+    converted: number;
+    flagged: number;
+    skipped: number;
+    flaggedItems: Array<{ className: string; reason: string }>;
+  };
+}
 
-function CopyButton({ text }: { text: string }) {
+type OutputCategory = "prisma" | "zod" | "nestjs" | "dto" | "enum";
+
+// ─────────── Category config ───────────
+
+interface CategoryConfig {
+  label: string;
+  color: string;
+  activeBg: string;
+  activeBorder: string;
+  fileTypes: FileType[];
+  icon: React.ReactNode;
+}
+
+const CATEGORIES: Record<OutputCategory, CategoryConfig> = {
+  prisma: {
+    label: "Prisma",
+    color: "text-purple-400",
+    activeBg: "bg-purple-500/10",
+    activeBorder: "border-purple-500/30",
+    fileTypes: ["prisma-schema"],
+    icon: <Database className="w-3.5 h-3.5" />,
+  },
+  zod: {
+    label: "Zod",
+    color: "text-emerald-400",
+    activeBg: "bg-emerald-500/10",
+    activeBorder: "border-emerald-500/30",
+    fileTypes: ["zod"],
+    icon: <Braces className="w-3.5 h-3.5" />,
+  },
+  nestjs: {
+    label: "NestJS",
+    color: "text-blue-400",
+    activeBg: "bg-blue-500/10",
+    activeBorder: "border-blue-500/30",
+    fileTypes: ["nestjs-service", "nestjs-controller", "nestjs-module"],
+    icon: <Server className="w-3.5 h-3.5" />,
+  },
+  dto: {
+    label: "DTO",
+    color: "text-amber-400",
+    activeBg: "bg-amber-500/10",
+    activeBorder: "border-amber-500/30",
+    fileTypes: ["dto"],
+    icon: <Box className="w-3.5 h-3.5" />,
+  },
+  enum: {
+    label: "Enum",
+    color: "text-pink-400",
+    activeBg: "bg-pink-500/10",
+    activeBorder: "border-pink-500/30",
+    fileTypes: ["enum"],
+    icon: <Hash className="w-3.5 h-3.5" />,
+  },
+};
+
+function fileTypeBadgeColor(type: FileType): string {
+  if (type.startsWith("nestjs")) return "text-blue-400/70 bg-blue-500/10";
+  if (type === "zod") return "text-emerald-400/70 bg-emerald-500/10";
+  if (type === "dto") return "text-amber-400/70 bg-amber-500/10";
+  if (type === "enum") return "text-pink-400/70 bg-pink-500/10";
+  if (type === "prisma-schema") return "text-purple-400/70 bg-purple-500/10";
+  return "text-gray-500 bg-white/[0.04]";
+}
+
+function fileTypeBadgeLabel(type: FileType): string {
+  const labels: Record<FileType, string> = {
+    "zod": "Zod",
+    "nestjs-service": "Service",
+    "nestjs-controller": "Controller",
+    "nestjs-module": "Module",
+    "dto": "DTO",
+    "enum": "Enum",
+    "prisma-schema": "Prisma",
+  };
+  return labels[type] ?? type;
+}
+
+// ─────────── Sub-components ───────────
+
+function CopyButton({ text, size = "sm" }: { text: string; size?: "xs" | "sm" }) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
@@ -49,10 +276,18 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const cls =
+    size === "xs"
+      ? "text-[10px] px-2 py-0.5 gap-1"
+      : "text-xs px-2.5 py-1 gap-1.5";
+
   return (
     <button
-      onClick={handleCopy}
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] transition-all"
+      onClick={(e) => {
+        e.stopPropagation();
+        handleCopy();
+      }}
+      className={`flex items-center rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] transition-all ${cls}`}
     >
       {copied ? (
         <>
@@ -69,100 +304,67 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function OutputPanel({
-  result,
-  index,
+function FileCard({
+  file,
+  defaultOpen = false,
 }: {
-  result: ConvertResultItem;
-  index: number;
+  file: GeneratedFile;
+  defaultOpen?: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<OutputTab>("zod");
-
-  const tabs: {
-    key: OutputTab;
-    label: string;
-    icon: React.ReactNode;
-    color: string;
-    activeColor: string;
-  }[] = [
-    {
-      key: "zod",
-      label: "Zod Schema",
-      icon: <Braces className="w-3.5 h-3.5" />,
-      color: "text-gray-500",
-      activeColor: "text-emerald-400",
-    },
-    {
-      key: "prisma",
-      label: "Prisma Model",
-      icon: <Database className="w-3.5 h-3.5" />,
-      color: "text-gray-500",
-      activeColor: "text-purple-400",
-    },
-  ];
-
-  const code = activeTab === "zod" ? result.zod : result.prisma;
-  const accentGradient =
-    activeTab === "zod"
-      ? "from-emerald-500/20 to-emerald-600/5"
-      : "from-purple-500/20 to-purple-600/5";
-  const borderAccent =
-    activeTab === "zod" ? "border-emerald-500/20" : "border-purple-500/20";
+  const [open, setOpen] = useState(defaultOpen);
+  const parts = file.path.split("/");
+  const filename = parts.pop() ?? file.path;
+  const dir = parts.length > 0 ? parts.join("/") + "/" : "";
 
   return (
-    <div
-      className="rounded-xl border border-white/[0.06] bg-white/[0.015] backdrop-blur-sm overflow-hidden animate-fade-in-up"
-      style={{ animationDelay: `${index * 0.1}s` }}
-    >
-      {/* Tab bar */}
-      <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02]">
-        <div className="flex items-center">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium transition-all relative ${
-                activeTab === tab.key
-                  ? tab.activeColor
-                  : "text-gray-500 hover:text-gray-400"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-              {activeTab === tab.key && (
-                <div
-                  className={`absolute bottom-0 left-0 right-0 h-px ${
-                    activeTab === "zod" ? "bg-emerald-400" : "bg-purple-400"
-                  }`}
-                />
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 pr-2">
-          <span className="text-[10px] font-mono text-gray-600 bg-white/[0.03] px-2 py-0.5 rounded">
-            {result.className}
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.015] overflow-hidden transition-all">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/[0.02] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <FolderOpen className="w-3.5 h-3.5 text-gray-700 shrink-0" />
+          {dir && (
+            <span className="text-[11px] font-mono text-gray-600 truncate max-w-[140px]">
+              {dir}
+            </span>
+          )}
+          <span className="text-[12px] font-mono text-gray-300 shrink-0 font-medium">
+            {filename}
           </span>
-          <CopyButton text={code} />
         </div>
-      </div>
+        <div className="flex items-center gap-2 shrink-0 ml-3">
+          <span
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${fileTypeBadgeColor(file.type)}`}
+          >
+            {fileTypeBadgeLabel(file.type)}
+          </span>
+          <CopyButton text={file.content} size="xs" />
+          <ChevronRight
+            className={`w-3.5 h-3.5 text-gray-600 transition-transform duration-150 ${
+              open ? "rotate-90" : ""
+            }`}
+          />
+        </div>
+      </button>
 
-      {/* Code content */}
-      <div className={`relative bg-gradient-to-br ${accentGradient}`}>
-        <div className={`absolute top-0 left-0 w-full h-px ${borderAccent}`} />
-        <pre className="p-4 overflow-x-auto text-[13px] leading-relaxed max-h-72">
-          <code className="text-gray-300 font-mono">{code}</code>
-        </pre>
-      </div>
+      {open && (
+        <div className="border-t border-white/[0.04] bg-black/20">
+          <pre className="p-4 overflow-x-auto text-[12px] leading-relaxed max-h-96">
+            <code className="text-gray-300 font-mono whitespace-pre">
+              {file.content}
+            </code>
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[300px] rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01]">
-      <div className="relative mb-6">
+    <div className="flex flex-col items-center justify-center h-full min-h-[340px] rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01]">
+      <div className="relative mb-5">
         <div className="absolute inset-0 blur-2xl bg-violet-500/10 rounded-full" />
         <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/10 to-blue-500/10 border border-white/[0.06] flex items-center justify-center">
           <Columns2 className="w-7 h-7 text-violet-400/60" />
@@ -171,101 +373,227 @@ function EmptyState() {
       <p className="text-gray-500 text-sm font-medium mb-1">
         Output will appear here
       </p>
-      <p className="text-gray-600 text-xs">
-        Paste Java code and hit Convert to see results
+      <p className="text-gray-600 text-xs mb-5">
+        Paste Java code and hit Convert
       </p>
+      <div className="flex flex-wrap justify-center gap-1.5 px-8 max-w-xs">
+        {[
+          { label: "@Entity", color: "text-purple-400/60 border-purple-500/10 bg-purple-500/5" },
+          { label: "@Service", color: "text-blue-400/60 border-blue-500/10 bg-blue-500/5" },
+          { label: "@RestController", color: "text-blue-300/60 border-blue-400/10 bg-blue-400/5" },
+          { label: "enum", color: "text-pink-400/60 border-pink-500/10 bg-pink-500/5" },
+          { label: "Dto", color: "text-amber-400/60 border-amber-500/10 bg-amber-500/5" },
+          { label: "@OneToMany", color: "text-violet-400/60 border-violet-500/10 bg-violet-500/5" },
+        ].map(({ label, color }) => (
+          <span
+            key={label}
+            className={`px-2 py-0.5 rounded-full border text-[10px] font-mono ${color}`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-4 animate-fade-in">
-      {[0, 1].map((i) => (
+    <div className="space-y-3">
+      {/* Tab skeleton */}
+      <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="flex-1 h-8 rounded-md bg-white/[0.04] animate-pulse"
+            style={{ animationDelay: `${i * 0.1}s` }}
+          />
+        ))}
+      </div>
+      {/* File cards skeleton */}
+      {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="rounded-xl border border-white/[0.06] bg-white/[0.015] overflow-hidden"
+          className="rounded-lg border border-white/[0.06] bg-white/[0.015] overflow-hidden"
         >
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
-            <div className="h-3 w-20 rounded bg-white/[0.06] animate-pulse" />
-            <div className="h-3 w-24 rounded bg-white/[0.04] animate-pulse" />
+          <div className="flex items-center gap-3 px-3 py-2.5">
+            <div className="h-3 w-4 rounded bg-white/[0.06] animate-pulse" />
+            <div className="h-3 w-48 rounded bg-white/[0.05] animate-pulse" />
+            <div className="ml-auto h-4 w-12 rounded bg-white/[0.04] animate-pulse" />
           </div>
-          <div className="p-4 space-y-2.5">
-            {[...Array(4)].map((_, j) => (
-              <div
-                key={j}
-                className="h-3 rounded bg-white/[0.04] animate-pulse"
-                style={{
-                  width: `${65 + Math.random() * 30}%`,
-                  animationDelay: `${j * 0.1}s`,
-                }}
-              />
-            ))}
-          </div>
+          {i === 0 && (
+            <div className="border-t border-white/[0.04] p-4 space-y-2">
+              {[...Array(4)].map((_, j) => (
+                <div
+                  key={j}
+                  className="h-2.5 rounded bg-white/[0.03] animate-pulse"
+                  style={{ width: `${55 + j * 10}%`, animationDelay: `${j * 0.08}s` }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-function StatsBar({ results }: { results: ConvertResultItem[] }) {
-  if (results.length === 0) return null;
+// ─────────── Output section ───────────
 
-  const totalFields = results.reduce((acc, r) => {
-    const zodFields = (r.zod.match(/z\.\w+/g) || []).length;
-    return acc + zodFields;
-  }, 0);
+function StatsRow({ result }: { result: ProjectResult }) {
+  const counts = {
+    entities: result.files.filter((f) => f.type === "zod").length,
+    services: result.files.filter((f) => f.type === "nestjs-service").length,
+    controllers: result.files.filter((f) => f.type === "nestjs-controller").length,
+    dtos: result.files.filter((f) => f.type === "dto").length,
+    enums: result.files.filter((f) => f.type === "enum").length,
+  };
 
-  const stats = [
-    {
-      icon: <Layers className="w-3.5 h-3.5" />,
-      label: "Entities",
-      value: results.length,
-      color: "text-blue-400",
-    },
-    {
-      icon: <Zap className="w-3.5 h-3.5" />,
-      label: "Fields mapped",
-      value: totalFields,
-      color: "text-amber-400",
-    },
-    {
-      icon: <Code2 className="w-3.5 h-3.5" />,
-      label: "Outputs",
-      value: results.length * 2,
-      color: "text-emerald-400",
-    },
-  ];
+  const activeStats = [
+    { key: "entities", color: "text-purple-400", label: "entities" },
+    { key: "services", color: "text-blue-400", label: "services" },
+    { key: "controllers", color: "text-blue-300", label: "controllers" },
+    { key: "dtos", color: "text-amber-400", label: "DTOs" },
+    { key: "enums", color: "text-pink-400", label: "enums" },
+  ].filter((s) => counts[s.key as keyof typeof counts] > 0);
+
+  const totalFiles = result.files.filter((f) => f.type !== "prisma-schema").length + 1;
 
   return (
-    <div className="flex items-center gap-4 px-1 mb-4 animate-fade-in">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 mb-3">
       <div className="flex items-center gap-1.5 text-xs text-emerald-400">
         <Sparkles className="w-3.5 h-3.5" />
-        <span className="font-medium">Conversion complete</span>
+        <span className="font-semibold">Converted</span>
       </div>
-      <div className="h-3 w-px bg-white/10" />
-      {stats.map((stat) => (
-        <div
-          key={stat.label}
-          className="flex items-center gap-1.5 text-xs text-gray-500"
-        >
-          <span className={stat.color}>{stat.icon}</span>
-          <span>
-            <span className="text-gray-400 font-medium">{stat.value}</span>{" "}
-            {stat.label}
-          </span>
-        </div>
+      <div className="h-3 w-px bg-white/[0.08]" />
+      {activeStats.map((s) => (
+        <span key={s.key} className={`text-xs font-mono ${s.color}`}>
+          {counts[s.key as keyof typeof counts]}{" "}
+          <span className="text-gray-500">{s.label}</span>
+        </span>
       ))}
+      <div className="ml-auto flex items-center gap-1.5 text-[11px] text-gray-600">
+        <Code2 className="w-3 h-3" />
+        <span>{totalFiles} files generated</span>
+      </div>
     </div>
   );
 }
 
+function OutputSection({ result }: { result: ProjectResult }) {
+  const allCategories = Object.keys(CATEGORIES) as OutputCategory[];
+
+  const availableCategories = allCategories.filter((cat) => {
+    if (cat === "prisma") return !!result.prismaSchema;
+    return result.files.some((f) => CATEGORIES[cat].fileTypes.includes(f.type));
+  });
+
+  const [activeCategory, setActiveCategory] = useState<OutputCategory>(
+    availableCategories[0] ?? "prisma"
+  );
+
+  useEffect(() => {
+    if (availableCategories.length > 0) {
+      setActiveCategory(availableCategories[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  const activeFiles =
+    activeCategory === "prisma"
+      ? []
+      : result.files.filter((f) =>
+          CATEGORIES[activeCategory].fileTypes.includes(f.type)
+        );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <StatsRow result={result} />
+
+      {/* Category tab bar */}
+      <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+        {availableCategories.map((cat) => {
+          const cfg = CATEGORIES[cat];
+          const isActive = activeCategory === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`flex items-center justify-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
+                isActive
+                  ? `${cfg.color} ${cfg.activeBg} border ${cfg.activeBorder} shadow-sm`
+                  : "text-gray-600 hover:text-gray-400 hover:bg-white/[0.03] border border-transparent"
+              }`}
+            >
+              {cfg.icon}
+              <span className="hidden sm:inline">{cfg.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content */}
+      <div className="space-y-2.5">
+        {activeCategory === "prisma" ? (
+          <div className="rounded-xl border border-purple-500/10 bg-white/[0.015] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <Database className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-xs font-semibold text-purple-300">
+                  schema.prisma
+                </span>
+              </div>
+              <CopyButton text={result.prismaSchema} />
+            </div>
+            <pre className="p-4 overflow-x-auto text-[12px] leading-relaxed max-h-[520px]">
+              <code className="text-gray-300 font-mono whitespace-pre">
+                {result.prismaSchema}
+              </code>
+            </pre>
+          </div>
+        ) : (
+          activeFiles.map((file, i) => (
+            <FileCard key={file.path} file={file} defaultOpen={i === 0} />
+          ))
+        )}
+
+        {activeCategory !== "prisma" && activeFiles.length === 0 && (
+          <div className="text-center py-8 text-gray-600 text-sm">
+            No {CATEGORIES[activeCategory].label} files generated
+          </div>
+        )}
+      </div>
+
+      {/* Flagged items */}
+      {result.report.flaggedItems.length > 0 && (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            {result.report.flaggedItems.length} item
+            {result.report.flaggedItems.length > 1 ? "s" : ""} need manual
+            review
+          </div>
+          {result.report.flaggedItems.map((item) => (
+            <div key={item.className} className="pl-5 text-[11px]">
+              <span className="font-mono text-amber-400/80">{item.className}</span>
+              <span className="text-gray-600"> — </span>
+              <span className="text-amber-500/70">{item.reason}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────── Main page ───────────
+
 export default function ConverterPage() {
-  const [code, setCode] = useState(SAMPLE_JAVA);
-  const [results, setResults] = useState<ConvertResultItem[]>([]);
+  const [code, setCode] = useState<string>(SAMPLES.fullStack.code);
+  const [activeSample, setActiveSample] = useState<SampleKey>("fullStack");
+  const [result, setResult] = useState<ProjectResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -273,13 +601,15 @@ export default function ConverterPage() {
     if (loading || !code.trim()) return;
     setLoading(true);
     setError("");
-    setResults([]);
+    setResult(null);
 
     try {
-      const res = await fetch(`${apiUrl}/convert/simple`, {
+      const res = await fetch(`${apiUrl}/convert/project`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          files: [{ path: "Input.java", content: code }],
+        }),
       });
 
       const data = await res.json();
@@ -289,7 +619,7 @@ export default function ConverterPage() {
         return;
       }
 
-      setResults(data.results ?? []);
+      setResult(data as ProjectResult);
     } catch (err) {
       setError(`Failed to connect to API: ${(err as Error).message}`);
     } finally {
@@ -308,18 +638,26 @@ export default function ConverterPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleConvert]);
 
+  function handleSampleSelect(key: SampleKey) {
+    setActiveSample(key);
+    setCode(SAMPLES[key].code);
+    setResult(null);
+    setError("");
+  }
+
   const lineCount = code.split("\n").length;
 
   return (
-    <div className="relative min-h-screen flex flex-col">
+    <div className="relative min-h-screen flex flex-col bg-gray-950">
       {/* Background atmosphere */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[400px] rounded-full bg-blue-600/[0.03] blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-violet-600/[0.04] blur-[120px]" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-[700px] h-[400px] rounded-full bg-blue-600/[0.04] blur-[130px]" />
+        <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] rounded-full bg-violet-600/[0.05] blur-[130px]" />
+        <div className="absolute top-1/2 left-0 w-[300px] h-[300px] rounded-full bg-indigo-600/[0.03] blur-[100px]" />
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-10 border-b border-white/[0.04] bg-gray-950/80 backdrop-blur-xl">
+      <nav className="relative z-10 border-b border-white/[0.04] bg-gray-950/80 backdrop-blur-xl sticky top-0">
         <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
@@ -334,24 +672,22 @@ export default function ConverterPage() {
               <span className="text-sm font-semibold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
                 Transmuter.ai
               </span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+              <ChevronRight className="w-3.5 h-3.5 text-gray-700" />
               <span className="text-sm text-gray-400">Converter</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-              <span className="text-[10px] font-mono text-gray-600">POST</span>
-              <span className="text-[10px] font-mono text-gray-500">
-                /convert/simple
-              </span>
+            <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] font-mono text-[10px]">
+              <span className="text-violet-400/70">POST</span>
+              <span className="text-gray-500">/convert/project</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs">
+            <div className="flex items-center gap-1.5">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
               </span>
-              <span className="text-gray-500 hidden sm:inline">
+              <span className="text-[11px] text-gray-500 hidden sm:inline">
                 Engine ready
               </span>
             </div>
@@ -360,33 +696,36 @@ export default function ConverterPage() {
       </nav>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 py-6">
+      <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 py-8">
         {/* Page header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-violet-500/20 bg-violet-500/5 text-violet-400 text-xs">
-              <Sparkles className="w-3 h-3" />
-              AST-Powered Conversion
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-violet-500/20 bg-violet-500/[0.07] text-violet-400 text-xs font-medium">
+              <GitBranch className="w-3 h-3" />
+              AST-Powered · Multi-Stereotype
             </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Java Entity{" "}
+          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight">
+            Java{" "}
             <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
-              Converter
-            </span>
+              → TypeScript
+            </span>{" "}
+            Converter
           </h1>
-          <p className="mt-1.5 text-sm text-gray-500">
-            Paste your JPA @Entity classes and get production-ready Zod schemas
-            and Prisma models instantly.
+          <p className="mt-2 text-[15px] text-gray-500 max-w-xl">
+            Paste any Java class — entity, service, controller, DTO, or enum —
+            and get production-ready{" "}
+            <span className="text-gray-400">NestJS · Zod · Prisma</span>{" "}
+            instantly.
           </p>
         </div>
 
         {/* Editor grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Input panel */}
-          <div className="flex flex-col">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] backdrop-blur-sm overflow-hidden flex flex-col flex-1">
-              {/* Editor toolbar */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {/* ─── Input panel ─── */}
+          <div className="flex flex-col sticky top-20">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.012] backdrop-blur-sm overflow-hidden flex flex-col">
+              {/* Toolbar */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1.5">
@@ -397,7 +736,7 @@ export default function ConverterPage() {
                   <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.06]">
                     <FileCode2 className="w-3.5 h-3.5 text-orange-400" />
                     <span className="text-xs text-gray-400 font-medium">
-                      Entity.java
+                      Input.java
                     </span>
                   </div>
                 </div>
@@ -408,33 +747,62 @@ export default function ConverterPage() {
                 </div>
               </div>
 
-              {/* Textarea with line-number gutter feel */}
-              <div className="relative flex-1">
-                <textarea
-                  ref={textareaRef}
-                  className="w-full h-full min-h-[380px] bg-transparent p-4 pl-5 font-mono text-[13px] leading-relaxed text-gray-300 focus:outline-none resize-none placeholder-gray-700"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="Paste your Java @Entity class here..."
-                  spellCheck={false}
-                />
+              {/* Sample picker */}
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.04] bg-white/[0.01] flex-wrap">
+                <span className="text-[10px] text-gray-700 font-semibold uppercase tracking-widest shrink-0">
+                  Try:
+                </span>
+                {(Object.keys(SAMPLES) as SampleKey[]).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => handleSampleSelect(key)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all border ${
+                      activeSample === key
+                        ? "bg-violet-500/10 border-violet-500/25 text-violet-300"
+                        : "text-gray-500 hover:text-gray-400 hover:bg-white/[0.03] border-transparent"
+                    }`}
+                  >
+                    {SAMPLES[key].label}
+                    {activeSample === key && (
+                      <span className="text-[9px] text-violet-500/60 hidden sm:inline truncate max-w-[120px]">
+                        {SAMPLES[key].hint}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
 
-              {/* Bottom action bar */}
+              {/* Textarea */}
+              <textarea
+                className="w-full min-h-[400px] bg-transparent p-5 font-mono text-[13px] leading-relaxed text-gray-300 focus:outline-none resize-none placeholder-gray-700 tab-size-2"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Paste Java code here...&#10;&#10;Supports: @Entity · @Service · @RestController · @Repository · Dto · enum&#10;Multiple classes in the same paste are supported."
+                spellCheck={false}
+              />
+
+              {/* Action bar */}
               <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06] bg-white/[0.02]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-600">
-                    Supports @Entity, @Column, @Id, @GeneratedValue
-                  </span>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {["@Entity", "@Service", "@RestController", "enum", "Dto"].map(
+                    (t) => (
+                      <span
+                        key={t}
+                        className="text-[9px] font-mono text-gray-700"
+                      >
+                        {t}
+                      </span>
+                    )
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="hidden sm:inline text-[10px] text-gray-600 font-mono">
-                    {navigator?.platform?.includes("Mac") ? "⌘" : "Ctrl"}+Enter
-                  </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <kbd className="hidden sm:inline text-[10px] text-gray-600 font-mono bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">
+                    ⌘↵
+                  </kbd>
                   <button
                     onClick={handleConvert}
                     disabled={loading || !code.trim()}
-                    className="group flex items-center gap-2 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 text-white text-sm font-medium transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.25)] hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:scale-100"
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 text-white text-sm font-medium transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:scale-100"
                   >
                     {loading ? (
                       <>
@@ -453,17 +821,14 @@ export default function ConverterPage() {
             </div>
           </div>
 
-          {/* Output panel */}
-          <div className="flex flex-col">
-            {/* Stats bar */}
-            <StatsBar results={results} />
-
-            {/* Error message */}
+          {/* ─── Output panel ─── */}
+          <div className="flex flex-col min-h-[200px]">
+            {/* Error */}
             {error && (
-              <div className="flex items-start gap-3 p-4 mb-4 rounded-xl border border-red-500/20 bg-red-500/[0.05] backdrop-blur-sm animate-fade-in">
+              <div className="flex items-start gap-3 p-4 mb-4 rounded-xl border border-red-500/20 bg-red-500/[0.05] backdrop-blur-sm">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm text-red-300 font-medium">
+                  <p className="text-sm text-red-300 font-semibold">
                     Conversion failed
                   </p>
                   <p className="text-xs text-red-400/70 mt-1">{error}</p>
@@ -471,61 +836,107 @@ export default function ConverterPage() {
               </div>
             )}
 
-            {/* Results */}
             {loading ? (
               <LoadingSkeleton />
-            ) : results.length > 0 ? (
-              <div className="space-y-4">
-                {results.map((result, i) => (
-                  <OutputPanel
-                    key={result.className}
-                    result={result}
-                    index={i}
-                  />
-                ))}
-              </div>
+            ) : result ? (
+              <OutputSection result={result} />
             ) : !error ? (
               <EmptyState />
             ) : null}
           </div>
         </div>
 
-        {/* Mapping reference */}
-        <div className="mt-8 rounded-xl border border-white/[0.04] bg-white/[0.01] p-5">
-          <div className="flex items-center gap-2 mb-4">
+        {/* ─── Reference table ─── */}
+        <div className="mt-10 rounded-xl border border-white/[0.04] bg-white/[0.01] p-6">
+          <div className="flex items-center gap-2 mb-5">
             <Zap className="w-4 h-4 text-amber-400/60" />
-            <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Type Mapping Reference
+            <h3 className="text-xs font-semibold tracking-widest text-gray-500 uppercase">
+              Supported Conversions
             </h3>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {[
-              { java: "Long", prisma: "BigInt", ts: "number" },
-              { java: "Integer", prisma: "Int", ts: "number" },
-              { java: "String", prisma: "String", ts: "string" },
-              { java: "Boolean", prisma: "Boolean", ts: "boolean" },
-              { java: "Double", prisma: "Float", ts: "number" },
-              { java: "Date", prisma: "DateTime", ts: "Date" },
-            ].map((mapping) => (
-              <div
-                key={mapping.java}
-                className="flex flex-col gap-1.5 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]"
-              >
-                <span className="text-[10px] text-orange-400/70 font-mono">
-                  {mapping.java}
-                </span>
-                <div className="flex items-center gap-1">
-                  <ChevronRight className="w-2.5 h-2.5 text-gray-700" />
-                  <span className="text-[10px] text-purple-400/70 font-mono">
-                    {mapping.prisma}
-                  </span>
-                  <span className="text-gray-700 text-[10px]">/</span>
-                  <span className="text-[10px] text-emerald-400/70 font-mono">
-                    {mapping.ts}
-                  </span>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Stereotypes */}
+            <div>
+              <p className="text-[10px] text-gray-700 font-semibold uppercase tracking-widest mb-3">
+                Class stereotypes
+              </p>
+              <div className="space-y-2">
+                {[
+                  { ann: "@Entity", out: "Zod schema + Prisma model", color: "text-purple-400" },
+                  { ann: "@Service", out: "NestJS @Injectable service", color: "text-blue-400" },
+                  { ann: "@RestController", out: "NestJS @Controller", color: "text-blue-300" },
+                  { ann: "Dto suffix", out: "TS interface + Zod schema", color: "text-amber-400" },
+                  { ann: "enum", out: "TS enum + Prisma enum block", color: "text-pink-400" },
+                ].map((item) => (
+                  <div key={item.ann} className="flex items-start gap-2">
+                    <span className={`text-[11px] font-mono shrink-0 ${item.color}`}>
+                      {item.ann}
+                    </span>
+                    <span className="text-gray-700 text-[10px] shrink-0">→</span>
+                    <span className="text-[11px] text-gray-500">{item.out}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* JPA annotations */}
+            <div>
+              <p className="text-[10px] text-gray-700 font-semibold uppercase tracking-widest mb-3">
+                JPA annotations
+              </p>
+              <div className="space-y-2">
+                {[
+                  "@Id + @GeneratedValue",
+                  "@Column(nullable = false)",
+                  "@OneToMany(mappedBy)",
+                  "@ManyToOne → FK field",
+                  "@ManyToMany → join table",
+                  "@Transient → skipped",
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-violet-500/40 shrink-0" />
+                    <span className="text-[11px] font-mono text-gray-500">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Type mapping */}
+            <div className="sm:col-span-2">
+              <p className="text-[10px] text-gray-700 font-semibold uppercase tracking-widest mb-3">
+                Type mapping
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { java: "Long", prisma: "BigInt", ts: "number" },
+                  { java: "Integer", prisma: "Int", ts: "number" },
+                  { java: "String", prisma: "String", ts: "string" },
+                  { java: "Boolean", prisma: "Boolean", ts: "boolean" },
+                  { java: "Double", prisma: "Float", ts: "number" },
+                  { java: "BigDecimal", prisma: "Decimal", ts: "number" },
+                  { java: "LocalDate", prisma: "DateTime", ts: "string" },
+                  { java: "LocalDateTime", prisma: "DateTime", ts: "string" },
+                  { java: "UUID", prisma: "String", ts: "string" },
+                ].map((m) => (
+                  <div
+                    key={m.java}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04] min-w-0"
+                  >
+                    <span className="text-[10px] font-mono text-orange-400/70 shrink-0">
+                      {m.java}
+                    </span>
+                    <ChevronRight className="w-2.5 h-2.5 text-gray-700 shrink-0" />
+                    <span className="text-[10px] font-mono text-purple-400/70 shrink-0">
+                      {m.prisma}
+                    </span>
+                    <span className="text-[10px] text-gray-700 shrink-0">/</span>
+                    <span className="text-[10px] font-mono text-emerald-400/70 shrink-0">
+                      {m.ts}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </main>

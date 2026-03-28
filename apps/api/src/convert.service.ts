@@ -2,7 +2,19 @@ import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
 import {
   generateZodSchema,
   generatePrismaModel,
+  generatePrismaSchema,
+  generateNestService,
+  generateNestController,
+  generateNestModule,
+  generateTsEnum,
+  generateDto,
+  resolveRelations,
+  javaPackageToOutputPath,
   ParseResponse,
+  ProjectParseResponse,
+  GeneratedFile,
+  MigrationReport,
+  FlaggedItem,
 } from "@transmuter/core-engine";
 
 @Injectable()
@@ -13,8 +25,9 @@ export class ConvertService {
     this.parserUrl = process.env.PARSER_URL ?? "http://localhost:4000";
   }
 
+  // ─────────── /convert/simple ───────────
+
   async convert(javaCode: string) {
-    // Call the Java parser service
     const parseResponse = await this.callParser(javaCode);
 
     if (parseResponse.error) {
@@ -31,7 +44,6 @@ export class ConvertService {
       );
     }
 
-    // Convert each entity
     const results = parseResponse.entities.map((entity) => ({
       className: entity.className,
       zod: generateZodSchema(entity),
@@ -41,6 +53,164 @@ export class ConvertService {
     return { results };
   }
 
+  // ─────────── /convert/project ───────────
+
+  async convertProject(files: Array<{ path: string; content: string }>) {
+    const projectResponse = await this.callProjectParser(files);
+
+    if (projectResponse.error) {
+      throw new HttpException(
+        `Parser error: ${projectResponse.error}`,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    const totalClasses =
+      projectResponse.classes.length + projectResponse.enums.length;
+    if (totalClasses === 0) {
+      throw new HttpException(
+        "No recognizable Java classes found in the provided files.",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    // Resolve JPA relations across the class graph
+    const directives = resolveRelations(projectResponse);
+
+    // Generate full schema.prisma
+    const prismaSchema = generatePrismaSchema(projectResponse, directives);
+
+    // Generate per-class TypeScript files
+    const generatedFiles: GeneratedFile[] = [];
+    const flaggedItems: FlaggedItem[] = [];
+    let converted = 0;
+
+    for (const cls of projectResponse.classes) {
+      try {
+        switch (cls.stereotype) {
+          case "entity": {
+            const zodPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "zod",
+            );
+            generatedFiles.push({
+              path: zodPath,
+              content: generateZodSchema(cls),
+              type: "zod",
+            });
+            converted++;
+            break;
+          }
+          case "service": {
+            const svcPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "service",
+            );
+            const modPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "module",
+            );
+            generatedFiles.push({
+              path: svcPath,
+              content: generateNestService(cls),
+              type: "nestjs-service",
+            });
+            generatedFiles.push({
+              path: modPath,
+              content: generateNestModule(cls),
+              type: "nestjs-module",
+            });
+            converted++;
+            break;
+          }
+          case "controller": {
+            const ctrlPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "controller",
+            );
+            generatedFiles.push({
+              path: ctrlPath,
+              content: generateNestController(cls),
+              type: "nestjs-controller",
+            });
+            converted++;
+            break;
+          }
+          case "dto": {
+            const dtoPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "dto",
+            );
+            generatedFiles.push({
+              path: dtoPath,
+              content: generateDto(cls),
+              type: "dto",
+            });
+            converted++;
+            break;
+          }
+          default: {
+            flaggedItems.push({
+              className: cls.className,
+              reason: `Stereotype '${cls.stereotype}' has no generator yet. Manual migration required.`,
+            });
+          }
+        }
+      } catch (err) {
+        flaggedItems.push({
+          className: cls.className,
+          reason: `Generation error: ${(err as Error).message}`,
+        });
+      }
+    }
+
+    // Enums
+    for (const enumCls of projectResponse.enums) {
+      try {
+        const enumPath = javaPackageToOutputPath(
+          enumCls.packageName,
+          enumCls.className,
+          "enum",
+        );
+        generatedFiles.push({
+          path: enumPath,
+          content: generateTsEnum(enumCls),
+          type: "enum",
+        });
+        converted++;
+      } catch (err) {
+        flaggedItems.push({
+          className: enumCls.className,
+          reason: `Enum generation error: ${(err as Error).message}`,
+        });
+      }
+    }
+
+    // Add schema.prisma as a generated file too
+    generatedFiles.push({
+      path: "schema.prisma",
+      content: prismaSchema,
+      type: "prisma-schema",
+    });
+
+    const report: MigrationReport = {
+      totalClasses,
+      converted,
+      flagged: flaggedItems.length,
+      skipped: totalClasses - converted - flaggedItems.length,
+      flaggedItems,
+    };
+
+    return { prismaSchema, files: generatedFiles, report };
+  }
+
+  // ─────────── Parser calls ───────────
+
   private async callParser(code: string): Promise<ParseResponse> {
     try {
       const res = await fetch(`${this.parserUrl}/parse`, {
@@ -49,6 +219,24 @@ export class ConvertService {
         body: JSON.stringify({ code }),
       });
       return (await res.json()) as ParseResponse;
+    } catch (err) {
+      throw new HttpException(
+        `Failed to reach parser service at ${this.parserUrl}: ${(err as Error).message}`,
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  private async callProjectParser(
+    files: Array<{ path: string; content: string }>,
+  ): Promise<ProjectParseResponse> {
+    try {
+      const res = await fetch(`${this.parserUrl}/parse/project`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files }),
+      });
+      return (await res.json()) as ProjectParseResponse;
     } catch (err) {
       throw new HttpException(
         `Failed to reach parser service at ${this.parserUrl}: ${(err as Error).message}`,
