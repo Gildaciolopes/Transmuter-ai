@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   FolderOpen,
   GitBranch,
+  Download,
 } from "lucide-react";
 
 // ─────────── Samples ───────────
@@ -254,12 +255,12 @@ function fileTypeBadgeColor(type: FileType): string {
 
 function fileTypeBadgeLabel(type: FileType): string {
   const labels: Record<FileType, string> = {
-    "zod": "Zod",
+    zod: "Zod",
     "nestjs-service": "Service",
     "nestjs-controller": "Controller",
     "nestjs-module": "Module",
-    "dto": "DTO",
-    "enum": "Enum",
+    dto: "DTO",
+    enum: "Enum",
     "prisma-schema": "Prisma",
   };
   return labels[type] ?? type;
@@ -267,7 +268,13 @@ function fileTypeBadgeLabel(type: FileType): string {
 
 // ─────────── Sub-components ───────────
 
-function CopyButton({ text, size = "sm" }: { text: string; size?: "xs" | "sm" }) {
+function CopyButton({
+  text,
+  size = "sm",
+}: {
+  text: string;
+  size?: "xs" | "sm";
+}) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
@@ -378,12 +385,30 @@ function EmptyState() {
       </p>
       <div className="flex flex-wrap justify-center gap-1.5 px-8 max-w-xs">
         {[
-          { label: "@Entity", color: "text-purple-400/60 border-purple-500/10 bg-purple-500/5" },
-          { label: "@Service", color: "text-blue-400/60 border-blue-500/10 bg-blue-500/5" },
-          { label: "@RestController", color: "text-blue-300/60 border-blue-400/10 bg-blue-400/5" },
-          { label: "enum", color: "text-pink-400/60 border-pink-500/10 bg-pink-500/5" },
-          { label: "Dto", color: "text-amber-400/60 border-amber-500/10 bg-amber-500/5" },
-          { label: "@OneToMany", color: "text-violet-400/60 border-violet-500/10 bg-violet-500/5" },
+          {
+            label: "@Entity",
+            color: "text-purple-400/60 border-purple-500/10 bg-purple-500/5",
+          },
+          {
+            label: "@Service",
+            color: "text-blue-400/60 border-blue-500/10 bg-blue-500/5",
+          },
+          {
+            label: "@RestController",
+            color: "text-blue-300/60 border-blue-400/10 bg-blue-400/5",
+          },
+          {
+            label: "enum",
+            color: "text-pink-400/60 border-pink-500/10 bg-pink-500/5",
+          },
+          {
+            label: "Dto",
+            color: "text-amber-400/60 border-amber-500/10 bg-amber-500/5",
+          },
+          {
+            label: "@OneToMany",
+            color: "text-violet-400/60 border-violet-500/10 bg-violet-500/5",
+          },
         ].map(({ label, color }) => (
           <span
             key={label}
@@ -427,7 +452,10 @@ function LoadingSkeleton() {
                 <div
                   key={j}
                   className="h-2.5 rounded bg-white/[0.03] animate-pulse"
-                  style={{ width: `${55 + j * 10}%`, animationDelay: `${j * 0.08}s` }}
+                  style={{
+                    width: `${55 + j * 10}%`,
+                    animationDelay: `${j * 0.08}s`,
+                  }}
                 />
               ))}
             </div>
@@ -440,11 +468,30 @@ function LoadingSkeleton() {
 
 // ─────────── Output section ───────────
 
+async function downloadZip(result: ProjectResult) {
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+
+  // All TS/Prisma files
+  for (const file of result.files) {
+    zip.file(file.path, file.content);
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "transmuter-output.zip";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function StatsRow({ result }: { result: ProjectResult }) {
   const counts = {
     entities: result.files.filter((f) => f.type === "zod").length,
     services: result.files.filter((f) => f.type === "nestjs-service").length,
-    controllers: result.files.filter((f) => f.type === "nestjs-controller").length,
+    controllers: result.files.filter((f) => f.type === "nestjs-controller")
+      .length,
     dtos: result.files.filter((f) => f.type === "dto").length,
     enums: result.files.filter((f) => f.type === "enum").length,
   };
@@ -457,7 +504,8 @@ function StatsRow({ result }: { result: ProjectResult }) {
     { key: "enums", color: "text-pink-400", label: "enums" },
   ].filter((s) => counts[s.key as keyof typeof counts] > 0);
 
-  const totalFiles = result.files.filter((f) => f.type !== "prisma-schema").length + 1;
+  const totalFiles =
+    result.files.filter((f) => f.type !== "prisma-schema").length + 1;
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 mb-3">
@@ -472,9 +520,18 @@ function StatsRow({ result }: { result: ProjectResult }) {
           <span className="text-gray-500">{s.label}</span>
         </span>
       ))}
-      <div className="ml-auto flex items-center gap-1.5 text-[11px] text-gray-600">
-        <Code2 className="w-3 h-3" />
-        <span>{totalFiles} files generated</span>
+      <div className="ml-auto flex items-center gap-2">
+        <span className="flex items-center gap-1.5 text-[11px] text-gray-600">
+          <Code2 className="w-3 h-3" />
+          {totalFiles} files
+        </span>
+        <button
+          onClick={() => downloadZip(result)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium hover:bg-emerald-500/15 hover:border-emerald-500/30 transition-all"
+        >
+          <Download className="w-3 h-3" />
+          Download .zip
+        </button>
       </div>
     </div>
   );
@@ -489,7 +546,7 @@ function OutputSection({ result }: { result: ProjectResult }) {
   });
 
   const [activeCategory, setActiveCategory] = useState<OutputCategory>(
-    availableCategories[0] ?? "prisma"
+    availableCategories[0] ?? "prisma",
   );
 
   useEffect(() => {
@@ -503,7 +560,7 @@ function OutputSection({ result }: { result: ProjectResult }) {
     activeCategory === "prisma"
       ? []
       : result.files.filter((f) =>
-          CATEGORIES[activeCategory].fileTypes.includes(f.type)
+          CATEGORIES[activeCategory].fileTypes.includes(f.type),
         );
 
   return (
@@ -575,7 +632,9 @@ function OutputSection({ result }: { result: ProjectResult }) {
           </div>
           {result.report.flaggedItems.map((item) => (
             <div key={item.className} className="pl-5 text-[11px]">
-              <span className="font-mono text-amber-400/80">{item.className}</span>
+              <span className="font-mono text-amber-400/80">
+                {item.className}
+              </span>
               <span className="text-gray-600"> — </span>
               <span className="text-amber-500/70">{item.reason}</span>
             </div>
@@ -784,16 +843,20 @@ export default function ConverterPage() {
               {/* Action bar */}
               <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06] bg-white/[0.02]">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {["@Entity", "@Service", "@RestController", "enum", "Dto"].map(
-                    (t) => (
-                      <span
-                        key={t}
-                        className="text-[9px] font-mono text-gray-700"
-                      >
-                        {t}
-                      </span>
-                    )
-                  )}
+                  {[
+                    "@Entity",
+                    "@Service",
+                    "@RestController",
+                    "enum",
+                    "Dto",
+                  ].map((t) => (
+                    <span
+                      key={t}
+                      className="text-[9px] font-mono text-gray-700"
+                    >
+                      {t}
+                    </span>
+                  ))}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <kbd className="hidden sm:inline text-[10px] text-gray-600 font-mono bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">
@@ -862,18 +925,44 @@ export default function ConverterPage() {
               </p>
               <div className="space-y-2">
                 {[
-                  { ann: "@Entity", out: "Zod schema + Prisma model", color: "text-purple-400" },
-                  { ann: "@Service", out: "NestJS @Injectable service", color: "text-blue-400" },
-                  { ann: "@RestController", out: "NestJS @Controller", color: "text-blue-300" },
-                  { ann: "Dto suffix", out: "TS interface + Zod schema", color: "text-amber-400" },
-                  { ann: "enum", out: "TS enum + Prisma enum block", color: "text-pink-400" },
+                  {
+                    ann: "@Entity",
+                    out: "Zod schema + Prisma model",
+                    color: "text-purple-400",
+                  },
+                  {
+                    ann: "@Service",
+                    out: "NestJS @Injectable service",
+                    color: "text-blue-400",
+                  },
+                  {
+                    ann: "@RestController",
+                    out: "NestJS @Controller",
+                    color: "text-blue-300",
+                  },
+                  {
+                    ann: "Dto suffix",
+                    out: "TS interface + Zod schema",
+                    color: "text-amber-400",
+                  },
+                  {
+                    ann: "enum",
+                    out: "TS enum + Prisma enum block",
+                    color: "text-pink-400",
+                  },
                 ].map((item) => (
                   <div key={item.ann} className="flex items-start gap-2">
-                    <span className={`text-[11px] font-mono shrink-0 ${item.color}`}>
+                    <span
+                      className={`text-[11px] font-mono shrink-0 ${item.color}`}
+                    >
                       {item.ann}
                     </span>
-                    <span className="text-gray-700 text-[10px] shrink-0">→</span>
-                    <span className="text-[11px] text-gray-500">{item.out}</span>
+                    <span className="text-gray-700 text-[10px] shrink-0">
+                      →
+                    </span>
+                    <span className="text-[11px] text-gray-500">
+                      {item.out}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -895,7 +984,9 @@ export default function ConverterPage() {
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <div className="w-1 h-1 rounded-full bg-violet-500/40 shrink-0" />
-                    <span className="text-[11px] font-mono text-gray-500">{item}</span>
+                    <span className="text-[11px] font-mono text-gray-500">
+                      {item}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -929,7 +1020,9 @@ export default function ConverterPage() {
                     <span className="text-[10px] font-mono text-purple-400/70 shrink-0">
                       {m.prisma}
                     </span>
-                    <span className="text-[10px] text-gray-700 shrink-0">/</span>
+                    <span className="text-[10px] text-gray-700 shrink-0">
+                      /
+                    </span>
                     <span className="text-[10px] font-mono text-emerald-400/70 shrink-0">
                       {m.ts}
                     </span>
