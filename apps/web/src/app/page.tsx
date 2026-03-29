@@ -70,7 +70,7 @@ const PRICING_TIERS = [
   },
   {
     name: "Pro",
-    price: "$19",
+    price: "$20",
     period: "/month",
     badge: "Most Popular",
     description: "For developers doing serious migrations.",
@@ -85,7 +85,7 @@ const PRICING_TIERS = [
   },
   {
     name: "Team",
-    price: "$79",
+    price: "$80",
     period: "/month",
     description: "For engineering teams migrating at scale.",
     features: ["Everything in Pro", "Github Integration", "Dedicated support"],
@@ -299,7 +299,7 @@ function AnimatedTerminal() {
                 : "Reading Java source..."}
           </span>
           <span className="ml-auto text-[11px] font-mono text-gray-600">
-            deterministic · no LLM
+            deterministic
           </span>
         </div>
       </div>
