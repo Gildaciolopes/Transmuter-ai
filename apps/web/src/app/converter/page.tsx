@@ -842,7 +842,7 @@ export default function ConverterPage() {
                   <button
                     onClick={handleConvert}
                     disabled={loading || !code.trim()}
-                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 text-white text-sm font-medium transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:scale-100"
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg border border-white/[0.09] text-white text-sm font-medium transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:scale-100"
                   >
                     {loading ? (
                       <>

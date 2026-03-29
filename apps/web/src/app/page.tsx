@@ -352,7 +352,7 @@ export default function LandingPage() {
           {/* CTA */}
           <Link
             href="/converter"
-            className="shrink-0 px-4 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:shadow-[0_0_20px_rgba(139,92,246,0.35)] transition-all"
+            className="shrink-0 px-4 py-1.5 rounded-lg text-sm font-semibold border border-white/[0.09] text-white hover:shadow-[0_0_20px_rgba(139,92,246,0.35)] transition-all"
           >
             Try Free
           </Link>
@@ -417,7 +417,7 @@ export default function LandingPage() {
           >
             <Link
               href="/converter"
-              className="group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-600 text-white font-semibold text-base transition-all hover:shadow-[0_0_50px_rgba(139,92,246,0.35)] hover:scale-[1.02]"
+              className="group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-white text-black font-semibold text-base transition-all hover:shadow-[0_0_50px_rgba(139,92,246,0.35)] hover:scale-[1.02]"
             >
               Try the Converter
             </Link>
@@ -445,7 +445,7 @@ export default function LandingPage() {
                   <span className="hidden sm:block w-px h-6 bg-white/10" />
                 )}
                 <div className="text-center sm:text-left">
-                  <div className="text-2xl font-bold font-[family-name:var(--font-syne)] bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">
+                  <div className="text-2xl font-bold font-[family-name:var(--font-syne)] bg-cyan-400 bg-clip-text text-transparent">
                     {stat.value}
                   </div>
                   <div className="text-xs text-gray-500 mt-0.5">
@@ -583,7 +583,7 @@ export default function LandingPage() {
               },
             ].map((item) => (
               <div key={item.step} className="relative text-center group">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-violet-500/10 border border-white/[0.07] text-violet-400 mb-5 group-hover:scale-110 group-hover:border-violet-500/30 transition-all">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-violet-500/10 border border-white/[0.07] text-cyan-400 mb-5 group-hover:scale-110 group-hover:border-cyan-500/30 transition-all">
                   {item.icon}
                 </div>
                 <div className="mb-1 text-[11px] font-bold tracking-widest text-gray-600">
@@ -631,7 +631,7 @@ export default function LandingPage() {
               >
                 {tier.badge && (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="px-3 py-1 rounded-full text-[11px] font-bold tracking-wide bg-gradient-to-r from-cyan-500 to-violet-600 text-white">
+                    <span className="px-3 py-1 rounded-full text-[11px] font-bold tracking-wide bg-white text-black">
                       {tier.badge}
                     </span>
                   </div>
@@ -679,7 +679,7 @@ export default function LandingPage() {
                   href={tier.ctaHref}
                   className={`block w-full py-3 rounded-xl text-center text-sm font-semibold transition-all ${
                     tier.highlighted
-                      ? "bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:scale-[1.02]"
+                      ? "bg-white text-black hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:scale-[1.02]"
                       : "border border-white/[0.09] text-gray-300 hover:bg-white/[0.04] hover:border-white/[0.15]"
                   }`}
                 >
@@ -699,7 +699,7 @@ export default function LandingPage() {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full bg-cyan-700/8 blur-[100px]" />
         </div>
         <div className="relative max-w-2xl mx-auto text-center">
-          <p className="text-xs font-semibold tracking-widest uppercase text-cyan-400/70 mb-4">
+          <p className="text-xs font-semibold tracking-widest uppercase text-violet-400/70 mb-4">
             Coming soon
           </p>
           <h2 className="text-4xl sm:text-5xl font-bold font-[family-name:var(--font-syne)] text-white tracking-tight leading-tight">
@@ -754,7 +754,7 @@ export default function LandingPage() {
                 />
                 <button
                   type="submit"
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-600 text-white font-semibold text-sm hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:scale-[1.02] transition-all whitespace-nowrap"
+                  className="px-6 py-3 rounded-xl border border-white/[0.09] text-white font-semibold text-sm hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] hover:scale-[1.02] transition-all whitespace-nowrap"
                 >
                   Join Waitlist
                 </button>
@@ -774,10 +774,6 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.04] py-10 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <span className="text-sm font-bold font-[family-name:var(--font-syne)] bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">
-              Transmuter.ai
-            </span>
-            <span className="hidden sm:block w-px h-4 bg-white/10" />
             <span className="text-xs text-gray-600">
               Java → TypeScript migration engine
             </span>
