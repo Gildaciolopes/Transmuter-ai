@@ -782,7 +782,7 @@ export default function ConverterPage() {
         {/* Editor grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           {/* ─── Input panel ─── */}
-          <div className="flex flex-col sticky top-20">
+          <div className="flex flex-col top-20">
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.012] backdrop-blur-sm overflow-hidden flex flex-col">
               {/* Toolbar */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
