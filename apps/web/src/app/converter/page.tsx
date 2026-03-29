@@ -845,9 +845,6 @@ export default function ConverterPage() {
                   ))}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <kbd className="hidden sm:inline text-[10px] text-gray-600 font-mono bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">
-                    ⌘↵
-                  </kbd>
                   <button
                     onClick={handleConvert}
                     disabled={loading || !code.trim()}
@@ -1024,9 +1021,6 @@ export default function ConverterPage() {
       <footer className="relative z-10 border-t border-white/[0.04] py-6 px-6 mt-auto">
         <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
-              Transmuter.ai
-            </span>
             <span className="text-gray-600 text-xs">
               Legacy-to-Modern Migration Engine
             </span>
