@@ -736,21 +736,7 @@ export default function ConverterPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] font-mono text-[10px]">
-              <span className="text-violet-400/70">POST</span>
-              <span className="text-gray-500">/convert/project</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-              </span>
-              <span className="text-[11px] text-gray-500 hidden sm:inline">
-                Engine ready
-              </span>
-            </div>
-          </div>
+          <div className="flex items-center gap-3"></div>
         </div>
       </nav>
 
