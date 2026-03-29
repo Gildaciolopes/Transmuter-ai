@@ -757,12 +757,6 @@ export default function ConverterPage() {
             </span>{" "}
             Converter
           </h1>
-          <p className="mt-2 text-[15px] text-gray-500 max-w-xl">
-            Paste any Java class — entity, service, controller, DTO, or enum —
-            and get production-ready{" "}
-            <span className="text-gray-400">NestJS · Zod · Prisma</span>{" "}
-            instantly.
-          </p>
         </div>
 
         {/* Editor grid */}
