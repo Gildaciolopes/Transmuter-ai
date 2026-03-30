@@ -441,8 +441,8 @@
     "../../node_modules/next/font/google/index.d.ts",
     "./src/app/layout.tsx",
     "./src/app/page.tsx",
-    "../../node_modules/lucide-react/dist/lucide-react.d.ts",
     "../../node_modules/jszip/index.d.ts",
+    "../../node_modules/lucide-react/dist/lucide-react.d.ts",
     "./src/app/converter/page.tsx",
     "./src/components/code-block.tsx",
     "./src/components/grid-background.tsx",
@@ -6035,18 +6035,21 @@
       "signature": "ba54342937eb116567785cc93f6ef7c8ce3b041a67bb2ecb579ab28359b06047"
     },
     {
-      "version": "2b20714de874837e49de304dd034b9c537207728d67b4b4fe6ab36a7fce82e28",
+      "version": "0d042e21d6cc375c48c6eecf024dde1ce43e275b65d1ff6df1ad7573c63778fe",
       "signature": "b08fbf391494dfd2b1b3681eb264ea04ae1192cd19bf67202c9e6e8bd6848c50"
+    },
+    {
+      "version": "522cb15ff9bef5a65c2f3dbd10dbba9e7ecae4de32f90f5c0b4198132be63ae4",
+      "impliedFormat": 1
     },
     {
       "version": "db7da89b083e353471f3911adb59288c2d4bda401b25433943e8128d654e0afc",
       "impliedFormat": 1
     },
     {
-      "version": "522cb15ff9bef5a65c2f3dbd10dbba9e7ecae4de32f90f5c0b4198132be63ae4",
-      "impliedFormat": 1
+      "version": "aa78574855ebf12a2715fe804d61b7dd55253409d8d5a70fd1c39d56c2fa95fb",
+      "signature": "fe84167285e0023f2ff4d4a91720c5ee927f624a55560f9639cc4de6bf61aa6c"
     },
-    "0a0f37097ccf35475e9f8ad2d181879a51020cae5eb5de22c7b929788a7f330f",
     "9032ade9fd8cc0cf1b77351073138828ca6510f1b898d6f1147cb09e49d2bcc0",
     "2fc88fa991185b024941bf38b9158c7deed03148e3d4ff5794f7932412c2bd74",
     "fd4e0da5e557ac24ddf4dd67b6430d69b2e08e7d8081e2e2ed04995af8cb9e36",
@@ -6531,11 +6534,11 @@
       9
     ],
     [
-      443,
+      442,
       79
     ],
     [
-      442,
+      443,
       8
     ],
     [
