@@ -96,66 +96,219 @@ export class ConvertService {
     const skippedItems: SkippedItem[] = [];
     let converted = 0;
 
+    // Pre-pass: collect DTO output paths and existing service class names so the
+    // controller case can compute correct relative DTO imports and auto-generate
+    // missing service stubs.
+    const dtoPathByClass = new Map<string, string>(); // className → output path (with .ts)
+    const serviceClassNames = new Set<string>();
+    for (const cls of flatResponse.classes) {
+      if (cls.stereotype === "dto") {
+        dtoPathByClass.set(
+          cls.className,
+          javaPackageToOutputPath(cls.packageName, cls.className, "dto"),
+        );
+      }
+      if (cls.stereotype === "service") {
+        serviceClassNames.add(cls.className);
+      }
+    }
+
     for (const cls of flatResponse.classes) {
       try {
         switch (cls.stereotype) {
           // ── Fully converted ──────────────────────────────────────
           case "entity": {
-            const zodPath = javaPackageToOutputPath(cls.packageName, cls.className, "zod");
-            generatedFiles.push({ path: zodPath, content: generateZodSchema(cls), type: "zod" });
+            const zodPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "zod",
+            );
+            generatedFiles.push({
+              path: zodPath,
+              content: generateZodSchema(cls),
+              type: "zod",
+            });
             converted++;
             break;
           }
           case "service": {
-            const svcPath = javaPackageToOutputPath(cls.packageName, cls.className, "service");
-            const modPath = javaPackageToOutputPath(cls.packageName, cls.className, "module");
-            generatedFiles.push({ path: svcPath, content: generateNestService(cls), type: "nestjs-service" });
-            generatedFiles.push({ path: modPath, content: generateNestModule(cls), type: "nestjs-module" });
+            const svcPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "service",
+            );
+            const modPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "module",
+            );
+            generatedFiles.push({
+              path: svcPath,
+              content: generateNestService(cls),
+              type: "nestjs-service",
+            });
+            generatedFiles.push({
+              path: modPath,
+              content: generateNestModule(cls),
+              type: "nestjs-module",
+            });
             converted++;
             break;
           }
           case "controller": {
-            const ctrlPath = javaPackageToOutputPath(cls.packageName, cls.className, "controller");
-            generatedFiles.push({ path: ctrlPath, content: generateNestController(cls), type: "nestjs-controller" });
+            const ctrlPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "controller",
+            );
+
+            // Build DTO import map: each DTO class name → relative path from this controller file
+            const dtoPathMap = new Map<string, string>();
+            for (const [dtoClass, dtoFilePath] of dtoPathByClass) {
+              dtoPathMap.set(
+                dtoClass,
+                computeRelativeImport(ctrlPath, dtoFilePath),
+              );
+            }
+
+            generatedFiles.push({
+              path: ctrlPath,
+              content: generateNestController(cls, dtoPathMap),
+              type: "nestjs-controller",
+            });
+
+            // Auto-generate service stub + module when no matching @Service was parsed
+            const serviceName = cls.className.replace(/Controller$/, "Service");
+            if (!serviceClassNames.has(serviceName)) {
+              const serviceStub = {
+                className: serviceName,
+                packageName: cls.packageName,
+                stereotype: "service" as const,
+                fields: [],
+                isEntity: false,
+              };
+              const svcPath = javaPackageToOutputPath(
+                cls.packageName,
+                serviceName,
+                "service",
+              );
+              const modPath = javaPackageToOutputPath(
+                cls.packageName,
+                serviceName,
+                "module",
+              );
+              generatedFiles.push({
+                path: svcPath,
+                content: generateNestService(serviceStub),
+                type: "nestjs-service",
+              });
+              generatedFiles.push({
+                path: modPath,
+                content: generateNestModule(serviceStub),
+                type: "nestjs-module",
+              });
+              stubItems.push({
+                className: serviceName,
+                reason:
+                  "No matching @Service found — stub generated from controller, implement business logic manually",
+              });
+            }
+
             converted++;
             break;
           }
           case "dto": {
-            const dtoPath = javaPackageToOutputPath(cls.packageName, cls.className, "dto");
-            generatedFiles.push({ path: dtoPath, content: generateDto(cls), type: "dto" });
+            const dtoPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "dto",
+            );
+            generatedFiles.push({
+              path: dtoPath,
+              content: generateDto(cls),
+              type: "dto",
+            });
             converted++;
             break;
           }
           case "repository": {
-            const repoPath = javaPackageToOutputPath(cls.packageName, cls.className, "repository");
-            generatedFiles.push({ path: repoPath, content: generateRepository(cls), type: "nestjs-repository" });
+            const repoPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "repository",
+            );
+            generatedFiles.push({
+              path: repoPath,
+              content: generateRepository(cls),
+              type: "nestjs-repository",
+            });
             converted++;
             break;
           }
 
           // ── Stubs — compilable but require manual review ──────────
           case "component": {
-            const compPath = javaPackageToOutputPath(cls.packageName, cls.className, "component");
-            generatedFiles.push({ path: compPath, content: generateComponent(cls), type: "nestjs-component" });
-            stubItems.push({ className: cls.className, reason: "Generic @Component — stub generated, implement methods manually" });
+            const compPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "component",
+            );
+            generatedFiles.push({
+              path: compPath,
+              content: generateComponent(cls),
+              type: "nestjs-component",
+            });
+            stubItems.push({
+              className: cls.className,
+              reason:
+                "Generic @Component — stub generated, implement methods manually",
+            });
             break;
           }
           case "exception-handler": {
-            const filterPath = javaPackageToOutputPath(cls.packageName, cls.className, "filter");
-            generatedFiles.push({ path: filterPath, content: generateExceptionFilter(cls), type: "nestjs-exception-filter" });
-            stubItems.push({ className: cls.className, reason: "@RestControllerAdvice — ExceptionFilter stub generated, map handler methods manually" });
+            const filterPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "filter",
+            );
+            generatedFiles.push({
+              path: filterPath,
+              content: generateExceptionFilter(cls),
+              type: "nestjs-exception-filter",
+            });
+            stubItems.push({
+              className: cls.className,
+              reason:
+                "@RestControllerAdvice — ExceptionFilter stub generated, map handler methods manually",
+            });
             break;
           }
           case "configuration": {
-            const confPath = javaPackageToOutputPath(cls.packageName, cls.className, "module");
-            generatedFiles.push({ path: confPath, content: generateConfiguration(cls), type: "nestjs-configuration" });
-            stubItems.push({ className: cls.className, reason: "@Configuration — @Module stub generated, wire providers manually" });
+            const confPath = javaPackageToOutputPath(
+              cls.packageName,
+              cls.className,
+              "module",
+            );
+            generatedFiles.push({
+              path: confPath,
+              content: generateConfiguration(cls),
+              type: "nestjs-configuration",
+            });
+            stubItems.push({
+              className: cls.className,
+              reason:
+                "@Configuration — @Module stub generated, wire providers manually",
+            });
             break;
           }
 
           // ── Skipped — no NestJS equivalent needed ─────────────────
           case "skip": {
-            skippedItems.push({ className: cls.className, reason: "Infrastructure class (@SpringBootApplication, servlet config, etc.) — no NestJS equivalent" });
+            skippedItems.push({
+              className: cls.className,
+              reason:
+                "Infrastructure class (@SpringBootApplication, servlet config, etc.) — no NestJS equivalent",
+            });
             break;
           }
 
@@ -177,8 +330,16 @@ export class ConvertService {
     // Enums
     for (const enumCls of flatResponse.enums) {
       try {
-        const enumPath = javaPackageToOutputPath(enumCls.packageName, enumCls.className, "enum");
-        generatedFiles.push({ path: enumPath, content: generateTsEnum(enumCls), type: "enum" });
+        const enumPath = javaPackageToOutputPath(
+          enumCls.packageName,
+          enumCls.className,
+          "enum",
+        );
+        generatedFiles.push({
+          path: enumPath,
+          content: generateTsEnum(enumCls),
+          type: "enum",
+        });
         converted++;
       } catch (err) {
         flaggedItems.push({
@@ -189,7 +350,11 @@ export class ConvertService {
     }
 
     // Add schema.prisma
-    generatedFiles.push({ path: "schema.prisma", content: prismaSchema, type: "prisma-schema" });
+    generatedFiles.push({
+      path: "schema.prisma",
+      content: prismaSchema,
+      type: "prisma-schema",
+    });
 
     const report: MigrationReport = {
       totalClasses,
@@ -240,4 +405,38 @@ export class ConvertService {
       );
     }
   }
+}
+
+/**
+ * Compute a relative TypeScript import path from one output file to another.
+ * Both paths are relative to the project root (e.g. "src/product/product.controller.ts").
+ * Returns path without .ts extension, e.g. "../domain/product/request-product".
+ */
+function computeRelativeImport(
+  fromFilePath: string,
+  toFilePath: string,
+): string {
+  const toNoExt = toFilePath.replace(/\.ts$/, "");
+
+  const fromParts = fromFilePath.split("/");
+  fromParts.pop(); // strip filename, keep directory segments
+
+  const toParts = toNoExt.split("/");
+
+  // Find common prefix length
+  let common = 0;
+  while (
+    common < fromParts.length &&
+    common < toParts.length &&
+    fromParts[common] === toParts[common]
+  ) {
+    common++;
+  }
+
+  const upCount = fromParts.length - common;
+  const downParts = toParts.slice(common);
+
+  const relParts = [...Array(upCount).fill(".."), ...downParts];
+  const rel = relParts.join("/");
+  return rel.startsWith(".") ? rel : "./" + rel;
 }
