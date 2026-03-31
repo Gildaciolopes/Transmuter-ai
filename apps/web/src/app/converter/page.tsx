@@ -170,6 +170,10 @@ type FileType =
   | "nestjs-service"
   | "nestjs-controller"
   | "nestjs-module"
+  | "nestjs-repository"
+  | "nestjs-exception-filter"
+  | "nestjs-component"
+  | "nestjs-configuration"
   | "dto"
   | "enum"
   | "prisma-schema";
@@ -186,8 +190,11 @@ interface ProjectResult {
   report: {
     totalClasses: number;
     converted: number;
-    flagged: number;
+    stubs: number;
     skipped: number;
+    flagged: number;
+    stubItems: Array<{ className: string; reason: string }>;
+    skippedItems: Array<{ className: string; reason: string }>;
     flaggedItems: Array<{ className: string; reason: string }>;
   };
 }
@@ -227,7 +234,15 @@ const CATEGORIES: Record<OutputCategory, CategoryConfig> = {
     color: "text-blue-400",
     activeBg: "bg-blue-500/10",
     activeBorder: "border-blue-500/30",
-    fileTypes: ["nestjs-service", "nestjs-controller", "nestjs-module"],
+    fileTypes: [
+      "nestjs-service",
+      "nestjs-controller",
+      "nestjs-module",
+      "nestjs-repository",
+      "nestjs-exception-filter",
+      "nestjs-component",
+      "nestjs-configuration",
+    ],
     icon: <Server className="w-3.5 h-3.5" />,
   },
   dto: {
@@ -263,6 +278,10 @@ function fileTypeBadgeLabel(type: FileType): string {
     "nestjs-service": "Service",
     "nestjs-controller": "Controller",
     "nestjs-module": "Module",
+    "nestjs-repository": "Repository",
+    "nestjs-exception-filter": "ExFilter",
+    "nestjs-component": "Component",
+    "nestjs-configuration": "Config",
     dto: "DTO",
     enum: "Enum",
     "prisma-schema": "Prisma",
@@ -470,6 +489,68 @@ function LoadingSkeleton() {
   );
 }
 
+// ─────────── Collapsible info sections ───────────
+
+function CollapsibleSection({
+  color,
+  icon,
+  title,
+  items,
+  itemColor,
+  reasonColor,
+}: {
+  color: "amber" | "gray" | "dark";
+  icon: React.ReactNode;
+  title: string;
+  items: Array<{ className: string; reason: string }>;
+  itemColor: string;
+  reasonColor: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const borderCls =
+    color === "amber"
+      ? "border-amber-500/20 bg-amber-500/[0.04]"
+      : color === "gray"
+        ? "border-white/[0.08] bg-white/[0.02]"
+        : "border-white/[0.04] bg-white/[0.01]";
+
+  const titleCls =
+    color === "amber"
+      ? "text-amber-400"
+      : color === "gray"
+        ? "text-gray-400"
+        : "text-gray-600";
+
+  return (
+    <div className={`rounded-lg border ${borderCls}`}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 p-3 text-left"
+      >
+        <span className={titleCls}>{icon}</span>
+        <span className={`text-xs font-medium ${titleCls}`}>{title}</span>
+        <ChevronRight
+          className={`w-3.5 h-3.5 ml-auto text-gray-600 transition-transform duration-150 ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <div className="border-t border-white/[0.04] px-3 pb-3 pt-2 space-y-1.5">
+          {items.map((item) => (
+            <div key={item.className} className="pl-2 text-[11px]">
+              <span className={`font-mono ${itemColor}`}>{item.className}</span>
+              <span className="text-gray-700"> — </span>
+              <span className={reasonColor}>{item.reason}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────── Output section ───────────
 
 async function downloadZip(result: ProjectResult) {
@@ -491,39 +572,39 @@ async function downloadZip(result: ProjectResult) {
 }
 
 function StatsRow({ result }: { result: ProjectResult }) {
-  const counts = {
-    entities: result.files.filter((f) => f.type === "zod").length,
-    services: result.files.filter((f) => f.type === "nestjs-service").length,
-    controllers: result.files.filter((f) => f.type === "nestjs-controller")
-      .length,
-    dtos: result.files.filter((f) => f.type === "dto").length,
-    enums: result.files.filter((f) => f.type === "enum").length,
-  };
-
-  const activeStats = [
-    { key: "entities", color: "text-purple-400", label: "entities" },
-    { key: "services", color: "text-blue-400", label: "services" },
-    { key: "controllers", color: "text-blue-300", label: "controllers" },
-    { key: "dtos", color: "text-amber-400", label: "DTOs" },
-    { key: "enums", color: "text-pink-400", label: "enums" },
-  ].filter((s) => counts[s.key as keyof typeof counts] > 0);
-
-  const totalFiles =
-    result.files.filter((f) => f.type !== "prisma-schema").length + 1;
+  const { converted, stubs, skipped, flagged } = result.report;
+  const totalFiles = result.files.filter((f) => f.type !== "prisma-schema").length + 1;
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 mb-3">
       <div className="flex items-center gap-1.5 text-xs text-emerald-400">
         <Sparkles className="w-3.5 h-3.5" />
-        <span className="font-semibold">Converted</span>
+        <span className="font-semibold">{converted} converted</span>
       </div>
-      <div className="h-3 w-px bg-white/[0.08]" />
-      {activeStats.map((s) => (
-        <span key={s.key} className={`text-xs font-mono ${s.color}`}>
-          {counts[s.key as keyof typeof counts]}{" "}
-          <span className="text-gray-500">{s.label}</span>
-        </span>
-      ))}
+      {stubs > 0 && (
+        <>
+          <div className="h-3 w-px bg-white/[0.08]" />
+          <span className="text-xs font-mono text-gray-400">
+            {stubs} <span className="text-gray-600">stubs</span>
+          </span>
+        </>
+      )}
+      {skipped > 0 && (
+        <>
+          <div className="h-3 w-px bg-white/[0.08]" />
+          <span className="text-xs font-mono text-gray-600">
+            {skipped} <span className="text-gray-700">skipped</span>
+          </span>
+        </>
+      )}
+      {flagged > 0 && (
+        <>
+          <div className="h-3 w-px bg-white/[0.08]" />
+          <span className="text-xs font-mono text-amber-500/80">
+            {flagged} <span className="text-amber-600/70">flagged</span>
+          </span>
+        </>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <span className="flex items-center gap-1.5 text-[11px] text-gray-600">
           <Code2 className="w-3 h-3" />
@@ -625,25 +706,40 @@ function OutputSection({ result }: { result: ProjectResult }) {
         )}
       </div>
 
-      {/* Flagged items */}
+      {/* Stub items — compilable, review implementations */}
+      {result.report.stubItems?.length > 0 && (
+        <CollapsibleSection
+          color="gray"
+          icon={<AlertCircle className="w-3.5 h-3.5" />}
+          title={`${result.report.stubItems.length} stub${result.report.stubItems.length > 1 ? "s" : ""} generated — review implementations`}
+          items={result.report.stubItems}
+          itemColor="text-gray-400/80"
+          reasonColor="text-gray-500/70"
+        />
+      )}
+
+      {/* Skipped items — no NestJS equivalent */}
+      {result.report.skippedItems?.length > 0 && (
+        <CollapsibleSection
+          color="dark"
+          icon={<X className="w-3.5 h-3.5" />}
+          title={`${result.report.skippedItems.length} skipped — no NestJS equivalent`}
+          items={result.report.skippedItems}
+          itemColor="text-gray-600"
+          reasonColor="text-gray-700"
+        />
+      )}
+
+      {/* Flagged items — require manual attention */}
       {result.report.flaggedItems.length > 0 && (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
-          <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            {result.report.flaggedItems.length} item
-            {result.report.flaggedItems.length > 1 ? "s" : ""} need manual
-            review
-          </div>
-          {result.report.flaggedItems.map((item) => (
-            <div key={item.className} className="pl-5 text-[11px]">
-              <span className="font-mono text-amber-400/80">
-                {item.className}
-              </span>
-              <span className="text-gray-600"> — </span>
-              <span className="text-amber-500/70">{item.reason}</span>
-            </div>
-          ))}
-        </div>
+        <CollapsibleSection
+          color="amber"
+          icon={<AlertTriangle className="w-3.5 h-3.5" />}
+          title={`${result.report.flaggedItems.length} item${result.report.flaggedItems.length > 1 ? "s" : ""} need manual review`}
+          items={result.report.flaggedItems}
+          itemColor="text-amber-400/80"
+          reasonColor="text-amber-500/70"
+        />
       )}
     </div>
   );

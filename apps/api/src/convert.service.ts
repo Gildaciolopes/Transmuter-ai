@@ -8,6 +8,10 @@ import {
   generateNestModule,
   generateTsEnum,
   generateDto,
+  generateRepository,
+  generateComponent,
+  generateConfiguration,
+  generateExceptionFilter,
   resolveRelations,
   flattenInheritance,
   javaPackageToOutputPath,
@@ -16,6 +20,8 @@ import {
   GeneratedFile,
   MigrationReport,
   FlaggedItem,
+  StubItem,
+  SkippedItem,
 } from "@transmuter/core-engine";
 
 @Injectable()
@@ -84,84 +90,79 @@ export class ConvertService {
     // Generate full schema.prisma
     const prismaSchema = generatePrismaSchema(flatResponse, directives);
 
-    // Generate per-class TypeScript files
     const generatedFiles: GeneratedFile[] = [];
     const flaggedItems: FlaggedItem[] = [];
+    const stubItems: StubItem[] = [];
+    const skippedItems: SkippedItem[] = [];
     let converted = 0;
 
     for (const cls of flatResponse.classes) {
       try {
         switch (cls.stereotype) {
+          // ── Fully converted ──────────────────────────────────────
           case "entity": {
-            const zodPath = javaPackageToOutputPath(
-              cls.packageName,
-              cls.className,
-              "zod",
-            );
-            generatedFiles.push({
-              path: zodPath,
-              content: generateZodSchema(cls),
-              type: "zod",
-            });
+            const zodPath = javaPackageToOutputPath(cls.packageName, cls.className, "zod");
+            generatedFiles.push({ path: zodPath, content: generateZodSchema(cls), type: "zod" });
             converted++;
             break;
           }
           case "service": {
-            const svcPath = javaPackageToOutputPath(
-              cls.packageName,
-              cls.className,
-              "service",
-            );
-            const modPath = javaPackageToOutputPath(
-              cls.packageName,
-              cls.className,
-              "module",
-            );
-            generatedFiles.push({
-              path: svcPath,
-              content: generateNestService(cls),
-              type: "nestjs-service",
-            });
-            generatedFiles.push({
-              path: modPath,
-              content: generateNestModule(cls),
-              type: "nestjs-module",
-            });
+            const svcPath = javaPackageToOutputPath(cls.packageName, cls.className, "service");
+            const modPath = javaPackageToOutputPath(cls.packageName, cls.className, "module");
+            generatedFiles.push({ path: svcPath, content: generateNestService(cls), type: "nestjs-service" });
+            generatedFiles.push({ path: modPath, content: generateNestModule(cls), type: "nestjs-module" });
             converted++;
             break;
           }
           case "controller": {
-            const ctrlPath = javaPackageToOutputPath(
-              cls.packageName,
-              cls.className,
-              "controller",
-            );
-            generatedFiles.push({
-              path: ctrlPath,
-              content: generateNestController(cls),
-              type: "nestjs-controller",
-            });
+            const ctrlPath = javaPackageToOutputPath(cls.packageName, cls.className, "controller");
+            generatedFiles.push({ path: ctrlPath, content: generateNestController(cls), type: "nestjs-controller" });
             converted++;
             break;
           }
           case "dto": {
-            const dtoPath = javaPackageToOutputPath(
-              cls.packageName,
-              cls.className,
-              "dto",
-            );
-            generatedFiles.push({
-              path: dtoPath,
-              content: generateDto(cls),
-              type: "dto",
-            });
+            const dtoPath = javaPackageToOutputPath(cls.packageName, cls.className, "dto");
+            generatedFiles.push({ path: dtoPath, content: generateDto(cls), type: "dto" });
             converted++;
             break;
           }
+          case "repository": {
+            const repoPath = javaPackageToOutputPath(cls.packageName, cls.className, "repository");
+            generatedFiles.push({ path: repoPath, content: generateRepository(cls), type: "nestjs-repository" });
+            converted++;
+            break;
+          }
+
+          // ── Stubs — compilable but require manual review ──────────
+          case "component": {
+            const compPath = javaPackageToOutputPath(cls.packageName, cls.className, "component");
+            generatedFiles.push({ path: compPath, content: generateComponent(cls), type: "nestjs-component" });
+            stubItems.push({ className: cls.className, reason: "Generic @Component — stub generated, implement methods manually" });
+            break;
+          }
+          case "exception-handler": {
+            const filterPath = javaPackageToOutputPath(cls.packageName, cls.className, "filter");
+            generatedFiles.push({ path: filterPath, content: generateExceptionFilter(cls), type: "nestjs-exception-filter" });
+            stubItems.push({ className: cls.className, reason: "@RestControllerAdvice — ExceptionFilter stub generated, map handler methods manually" });
+            break;
+          }
+          case "configuration": {
+            const confPath = javaPackageToOutputPath(cls.packageName, cls.className, "module");
+            generatedFiles.push({ path: confPath, content: generateConfiguration(cls), type: "nestjs-configuration" });
+            stubItems.push({ className: cls.className, reason: "@Configuration — @Module stub generated, wire providers manually" });
+            break;
+          }
+
+          // ── Skipped — no NestJS equivalent needed ─────────────────
+          case "skip": {
+            skippedItems.push({ className: cls.className, reason: "Infrastructure class (@SpringBootApplication, servlet config, etc.) — no NestJS equivalent" });
+            break;
+          }
+
           default: {
             flaggedItems.push({
               className: cls.className,
-              reason: `Stereotype '${cls.stereotype}' has no generator yet. Manual migration required.`,
+              reason: `Stereotype '${cls.stereotype}' has no generator. Manual migration required.`,
             });
           }
         }
@@ -176,16 +177,8 @@ export class ConvertService {
     // Enums
     for (const enumCls of flatResponse.enums) {
       try {
-        const enumPath = javaPackageToOutputPath(
-          enumCls.packageName,
-          enumCls.className,
-          "enum",
-        );
-        generatedFiles.push({
-          path: enumPath,
-          content: generateTsEnum(enumCls),
-          type: "enum",
-        });
+        const enumPath = javaPackageToOutputPath(enumCls.packageName, enumCls.className, "enum");
+        generatedFiles.push({ path: enumPath, content: generateTsEnum(enumCls), type: "enum" });
         converted++;
       } catch (err) {
         flaggedItems.push({
@@ -195,18 +188,17 @@ export class ConvertService {
       }
     }
 
-    // Add schema.prisma as a generated file too
-    generatedFiles.push({
-      path: "schema.prisma",
-      content: prismaSchema,
-      type: "prisma-schema",
-    });
+    // Add schema.prisma
+    generatedFiles.push({ path: "schema.prisma", content: prismaSchema, type: "prisma-schema" });
 
     const report: MigrationReport = {
       totalClasses,
       converted,
+      stubs: stubItems.length,
+      skipped: skippedItems.length,
       flagged: flaggedItems.length,
-      skipped: totalClasses - converted - flaggedItems.length,
+      stubItems,
+      skippedItems,
       flaggedItems,
     };
 

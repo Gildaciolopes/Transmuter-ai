@@ -24,7 +24,10 @@ export type FileType =
   | 'module'
   | 'dto'
   | 'enum'
-  | 'zod';
+  | 'zod'
+  | 'repository'
+  | 'component'
+  | 'filter';
 
 const FILE_SUFFIXES: Record<FileType, string> = {
   entity: 'entity',
@@ -34,6 +37,9 @@ const FILE_SUFFIXES: Record<FileType, string> = {
   dto: 'dto',
   enum: 'enum',
   zod: 'schema',
+  repository: 'repository',
+  component: 'component',
+  filter: 'filter',
 };
 
 /**
@@ -80,8 +86,11 @@ export function classNameToFileBase(className: string, fileType?: FileType): str
     const suffixes: Partial<Record<FileType, string[]>> = {
       service: ['Service'],
       controller: ['Controller', 'RestController'],
-      module: ['Service', 'Controller', 'Module'],
-      dto: ['Dto', 'DTO'],
+      module: ['Service', 'Controller', 'Module', 'Configuration', 'Config'],
+      dto: ['Dto', 'DTO', 'Request', 'Response', 'Form', 'Payload', 'Command', 'Body'],
+      repository: ['Repository'],
+      component: [],
+      filter: ['Handler', 'Advice', 'Filter'],
     };
     for (const suffix of suffixes[fileType] ?? []) {
       if (name.endsWith(suffix)) {

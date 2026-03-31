@@ -1,6 +1,5 @@
-import type { ParseResult } from './types';
+import type { ParseResult, MethodInfo } from './types';
 
-// Mapping of Spring HTTP annotations to NestJS equivalents
 const HTTP_METHOD_MAP: Record<string, string> = {
   GetMapping: 'Get',
   PostMapping: 'Post',
@@ -32,62 +31,123 @@ export function generateNestService(cls: ParseResult): string {
 
 /**
  * Generate a NestJS @Controller() from a Spring @RestController class.
- * Maps common HTTP method annotations.
+ * Uses extracted HTTP methods when available, falls back to generic CRUD stubs.
  */
 export function generateNestController(cls: ParseResult): string {
   const className = cls.className;
-  // Derive resource name: prefer @RequestMapping path, then class name convention
   const resource = cls.requestMapping
-    ? cls.requestMapping.replace(/^\/?(api\/)?/, '').replace(/\/$/, '')  // strip leading /api/ and trailing /
+    ? cls.requestMapping.replace(/^\/?(api\/)?/, '').replace(/\/$/, '')
     : className.replace(/Controller$/, '').toLowerCase();
   const serviceName = className.replace(/Controller$/, 'Service');
 
-  const nestDecorators = new Set<string>(['Controller']);
-
-  // Collect HTTP method imports needed
-  const httpImports = new Set<string>();
-  for (const ann of cls.fields.flatMap((f) => f.annotations)) {
-    const nestAnn = HTTP_METHOD_MAP[ann];
-    if (nestAnn) httpImports.add(nestAnn);
+  // Collect DTO imports needed for @Body() types (skip primitives and Object/unknown)
+  const dtoImports = new Set<string>();
+  const methods = cls.methods ?? [];
+  for (const m of methods) {
+    if (m.bodyType && !isPrimitive(m.bodyType) && m.bodyType !== 'Object' && m.bodyType !== 'unknown') {
+      dtoImports.add(m.bodyType);
+    }
   }
 
   const lines: string[] = [];
-  const decoratorImports = ['Controller', 'Get', 'Post', 'Put', 'Delete', 'Param', 'Body'];
-  lines.push(`import { ${decoratorImports.join(', ')} } from '@nestjs/common';`);
+
+  // Build import decorators list
+  const decoratorImports = new Set(['Controller', 'Param', 'Body']);
+  for (const m of methods) {
+    const nestDecorator = httpMethodToNestDecorator(m.httpMethod);
+    decoratorImports.add(nestDecorator);
+    for (const p of m.params) {
+      if (p.source === 'query') decoratorImports.add('Query');
+      if (p.source === 'header') decoratorImports.add('Headers');
+    }
+  }
+  if (methods.length === 0) {
+    ['Get', 'Post', 'Put', 'Delete'].forEach((d) => decoratorImports.add(d));
+  }
+
+  lines.push(`import { ${[...decoratorImports].sort().join(', ')} } from '@nestjs/common';`);
   lines.push(`import { ${serviceName} } from './${resource}.service';`);
+  for (const dto of dtoImports) {
+    lines.push(`import { ${dto} } from './${toKebabCase(dto)}.dto';`);
+  }
   lines.push('');
   lines.push(`@Controller('${resource}')`);
   lines.push(`export class ${className} {`);
   lines.push(`  constructor(private readonly ${lcFirst(serviceName)}: ${serviceName}) {}`);
   lines.push('');
-  lines.push(`  @Get()`);
-  lines.push(`  findAll() {`);
-  lines.push(`    // TODO: implement`);
-  lines.push(`  }`);
-  lines.push('');
-  lines.push(`  @Get(':id')`);
-  lines.push(`  findOne(@Param('id') id: string) {`);
-  lines.push(`    // TODO: implement`);
-  lines.push(`  }`);
-  lines.push('');
-  lines.push(`  @Post()`);
-  lines.push(`  create(@Body() body: unknown) {`);
-  lines.push(`    // TODO: implement`);
-  lines.push(`  }`);
-  lines.push('');
-  lines.push(`  @Put(':id')`);
-  lines.push(`  update(@Param('id') id: string, @Body() body: unknown) {`);
-  lines.push(`    // TODO: implement`);
-  lines.push(`  }`);
-  lines.push('');
-  lines.push(`  @Delete(':id')`);
-  lines.push(`  remove(@Param('id') id: string) {`);
-  lines.push(`    // TODO: implement`);
-  lines.push(`  }`);
+
+  if (methods.length > 0) {
+    for (const method of methods) {
+      lines.push(...renderMethod(method));
+      lines.push('');
+    }
+  } else {
+    // Fallback: generic CRUD stubs
+    lines.push(...GENERIC_CRUD_STUBS);
+    lines.push('');
+  }
+
   lines.push('}');
 
   return lines.join('\n');
 }
+
+function renderMethod(method: MethodInfo): string[] {
+  const nestDecorator = httpMethodToNestDecorator(method.httpMethod);
+  // Convert Java-style path params /{id} → NestJS :id style
+  const nestPath = method.path
+    ? method.path.replace(/\{(\w+)\}/g, ':$1')
+    : '';
+  const pathArg = nestPath ? `('${nestPath}')` : '()';
+  const lines: string[] = [];
+
+  lines.push(`  @${nestDecorator}${pathArg}`);
+
+  // Build parameter list
+  const params: string[] = [];
+  for (const p of method.params) {
+    if (p.source === 'path') params.push(`@Param('${p.name}') ${p.name}: string`);
+    else if (p.source === 'query') params.push(`@Query('${p.name}') ${p.name}: string`);
+    else if (p.source === 'header') params.push(`@Headers('${p.name}') ${p.name}: string`);
+  }
+  if (method.bodyType) {
+    const tsType =
+      isPrimitive(method.bodyType) || method.bodyType === 'Object' ? 'unknown' : method.bodyType;
+    params.push(`@Body() body: ${tsType}`);
+  }
+
+  lines.push(`  ${method.name}(${params.join(', ')}) {`);
+  lines.push(`    // TODO: migrate ${method.name}`);
+  lines.push(`  }`);
+  return lines;
+}
+
+const GENERIC_CRUD_STUBS = [
+  `  @Get()`,
+  `  findAll() {`,
+  `    // TODO: implement`,
+  `  }`,
+  ``,
+  `  @Get(':id')`,
+  `  findOne(@Param('id') id: string) {`,
+  `    // TODO: implement`,
+  `  }`,
+  ``,
+  `  @Post()`,
+  `  create(@Body() body: unknown) {`,
+  `    // TODO: implement`,
+  `  }`,
+  ``,
+  `  @Put(':id')`,
+  `  update(@Param('id') id: string, @Body() body: unknown) {`,
+  `    // TODO: implement`,
+  `  }`,
+  ``,
+  `  @Delete(':id')`,
+  `  remove(@Param('id') id: string) {`,
+  `    // TODO: implement`,
+  `  }`,
+];
 
 /**
  * Generate a NestJS @Module() that wires service + controller together.
@@ -127,6 +187,30 @@ export function generateTsEnum(cls: ParseResult): string {
   }
   lines.push('}');
   return lines.join('\n');
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+function httpMethodToNestDecorator(httpMethod: string): string {
+  const map: Record<string, string> = {
+    GET: 'Get',
+    POST: 'Post',
+    PUT: 'Put',
+    DELETE: 'Delete',
+    PATCH: 'Patch',
+  };
+  return map[httpMethod] ?? 'Get';
+}
+
+function isPrimitive(type: string): boolean {
+  return ['String', 'Long', 'Integer', 'Boolean', 'Double', 'Float', 'int', 'long', 'boolean', 'double', 'float', 'void', 'Void'].includes(type);
+}
+
+function toKebabCase(name: string): string {
+  return name
+    .replace(/([A-Z])/g, '-$1')
+    .toLowerCase()
+    .replace(/^-/, '');
 }
 
 function lcFirst(s: string): string {

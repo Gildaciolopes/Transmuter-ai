@@ -5,7 +5,10 @@ export type ClassStereotype =
   | 'controller'
   | 'component'
   | 'dto'
-  | 'enum';
+  | 'enum'
+  | 'exception-handler'
+  | 'configuration'
+  | 'skip';
 
 export type InheritanceStrategy = 'SINGLE_TABLE' | 'TABLE_PER_CLASS' | 'JOINED';
 
@@ -24,6 +27,26 @@ export interface EnumValue {
   ordinal: number;
 }
 
+/** Validation constraints extracted from Bean Validation / @Column annotations */
+export interface ConstraintInfo {
+  notNull?: boolean;
+  notBlank?: boolean;
+  notEmpty?: boolean;
+  email?: boolean;
+  positive?: boolean;
+  negative?: boolean;
+  min?: number;
+  max?: number;
+  sizeMin?: number;
+  sizeMax?: number;
+  pattern?: string;
+  columnLength?: number;
+  unique?: boolean;
+  precision?: number;
+  scale?: number;
+  [key: string]: unknown;
+}
+
 export interface FieldInfo {
   name: string;
   type: string;
@@ -31,6 +54,26 @@ export interface FieldInfo {
   annotations: string[];
   relation?: RelationInfo;
   isTransient: boolean;
+  /** Extracted from @GeneratedValue(strategy=...) */
+  generationStrategy?: 'UUID' | 'SEQUENCE' | 'IDENTITY' | 'AUTO';
+  /** Validation constraints from Bean Validation / @Column */
+  constraints?: ConstraintInfo;
+}
+
+export interface ParamInfo {
+  name: string;
+  type: string;
+  /** "path" | "query" | "body" | "header" | "unknown" */
+  source: string;
+}
+
+export interface MethodInfo {
+  name: string;
+  httpMethod: string;
+  path: string;
+  returnType: string;
+  params: ParamInfo[];
+  bodyType?: string;
 }
 
 export interface ParseResult {
@@ -45,6 +88,12 @@ export interface ParseResult {
   isMappedSuperclass?: boolean;
   tableName?: string;
   requestMapping?: string;
+  /** For repository interfaces: entity type, e.g. "Product" in JpaRepository<Product, String> */
+  entityType?: string;
+  /** For repository interfaces: id type, e.g. "String" in JpaRepository<Product, String> */
+  idType?: string;
+  /** HTTP methods extracted from controller/repository classes */
+  methods?: MethodInfo[];
 }
 
 export interface ProjectParseResponse {
@@ -69,20 +118,44 @@ export interface ConvertResult {
 export interface GeneratedFile {
   path: string;
   content: string;
-  type: 'zod' | 'nestjs-service' | 'nestjs-controller' | 'nestjs-module' | 'dto' | 'enum' | 'prisma-schema';
-}
-
-export interface MigrationReport {
-  totalClasses: number;
-  converted: number;
-  flagged: number;
-  skipped: number;
-  flaggedItems: FlaggedItem[];
+  type:
+    | 'zod'
+    | 'nestjs-service'
+    | 'nestjs-controller'
+    | 'nestjs-module'
+    | 'nestjs-repository'
+    | 'nestjs-exception-filter'
+    | 'nestjs-component'
+    | 'nestjs-configuration'
+    | 'dto'
+    | 'enum'
+    | 'prisma-schema';
 }
 
 export interface FlaggedItem {
   className: string;
   reason: string;
+}
+
+export interface StubItem {
+  className: string;
+  reason: string;
+}
+
+export interface SkippedItem {
+  className: string;
+  reason: string;
+}
+
+export interface MigrationReport {
+  totalClasses: number;
+  converted: number;
+  stubs: number;
+  skipped: number;
+  flagged: number;
+  stubItems: StubItem[];
+  skippedItems: SkippedItem[];
+  flaggedItems: FlaggedItem[];
 }
 
 export interface PrismaRelationDirective {

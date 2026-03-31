@@ -111,29 +111,43 @@ function buildFieldRows(
   knownEnums: Set<string> = new Set(),
 ): FieldRow[] {
   const rows: FieldRow[] = [];
-
-  // Track which synthetic FK fields we've already added
   const addedFkFields = new Set<string>();
 
   for (const field of entity.fields) {
-    // Skip @Transient fields
     if (field.isTransient) continue;
-
-    // Skip relation fields — they will be rendered separately below
     if (field.relation) continue;
 
-    // If the field type is a known enum, use it directly in Prisma
-    const prismaType = knownEnums.has(field.type)
-      ? field.type
-      : (javaToPrisma[field.type] ?? 'String');
     const isId = field.annotations.includes('Id');
     const isGenerated = field.annotations.includes('GeneratedValue');
-    const nullable = field.nullable && !isId;
+    const isUuid = field.generationStrategy === 'UUID';
 
+    // Determine Prisma type
+    let prismaType: string;
+    if (knownEnums.has(field.type)) {
+      prismaType = field.type;
+    } else if (isId && isUuid) {
+      // UUID primary key: always String regardless of Java type
+      prismaType = 'String';
+    } else {
+      prismaType = javaToPrisma[field.type] ?? 'String';
+    }
+
+    const nullable = field.nullable && !isId;
     const typeStr = prismaType + (nullable ? '?' : '');
     const decorators: string[] = [];
+
     if (isId) decorators.push('@id');
-    if (isGenerated) decorators.push('@default(autoincrement())');
+
+    if (isGenerated) {
+      if (isUuid) {
+        decorators.push('@default(uuid())');
+      } else {
+        decorators.push('@default(autoincrement())');
+      }
+    }
+
+    // @Column(unique=true)
+    if (field.constraints?.unique) decorators.push('@unique');
 
     rows.push({ name: field.name, type: typeStr, decorators });
   }
@@ -142,7 +156,6 @@ function buildFieldRows(
   const ownerDirectives = directives.filter((d) => d.ownerClass === entity.className);
   for (const d of ownerDirectives) {
     if (d.relationType === 'ManyToMany') {
-      // Implicit many-to-many: just add the array relation field; Prisma manages the join table
       rows.push({
         name: findRelationFieldName(entity, d.targetClass) ?? d.ownerField,
         type: `${d.targetClass}[]`,
@@ -158,9 +171,7 @@ function buildFieldRows(
       rows.push({
         name: fieldName,
         type: d.targetClass,
-        decorators: [
-          `@relation(fields: [${d.foreignKeyField}], references: [id])`,
-        ],
+        decorators: [`@relation(fields: [${d.foreignKeyField}], references: [id])`],
       });
     }
   }
@@ -169,13 +180,13 @@ function buildFieldRows(
   const targetDirectives = directives.filter((d) => d.targetClass === entity.className);
   for (const d of targetDirectives) {
     if (d.relationType === 'ManyToOne' || d.relationType === 'OneToOne') {
-      // Inverse of ManyToOne: add the array/object field on the "one" side
-      const fieldName = findRelationFieldNameOnTarget(entity, d.ownerClass) ?? lcFirst(d.ownerClass) + 's';
+      const fieldName =
+        findRelationFieldNameOnTarget(entity, d.ownerClass) ?? lcFirst(d.ownerClass) + 's';
       rows.push({ name: fieldName, type: `${d.ownerClass}[]`, decorators: [] });
     }
     if (d.relationType === 'ManyToMany') {
-      // Inverse of ManyToMany: add the array field
-      const fieldName = findRelationFieldNameOnTarget(entity, d.ownerClass) ?? lcFirst(d.ownerClass) + 's';
+      const fieldName =
+        findRelationFieldNameOnTarget(entity, d.ownerClass) ?? lcFirst(d.ownerClass) + 's';
       rows.push({ name: fieldName, type: `${d.ownerClass}[]`, decorators: [] });
     }
   }
@@ -183,18 +194,12 @@ function buildFieldRows(
   return rows;
 }
 
-// Find the field name on `entity` that references `targetClass`
 function findRelationFieldName(entity: ParseResult, targetClass: string): string | undefined {
-  return entity.fields.find(
-    (f) => f.relation?.targetClass === targetClass,
-  )?.name;
+  return entity.fields.find((f) => f.relation?.targetClass === targetClass)?.name;
 }
 
-// Find the field name on `entity` that references `ownerClass` from the inverse side
 function findRelationFieldNameOnTarget(entity: ParseResult, ownerClass: string): string | undefined {
-  return entity.fields.find(
-    (f) => f.relation?.targetClass === ownerClass,
-  )?.name;
+  return entity.fields.find((f) => f.relation?.targetClass === ownerClass)?.name;
 }
 
 function lcFirst(s: string): string {

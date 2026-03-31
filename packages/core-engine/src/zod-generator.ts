@@ -1,4 +1,4 @@
-import type { ParseResult } from './types';
+import type { ParseResult, ConstraintInfo } from './types';
 import { javaToZod } from './type-map';
 import { classNameToFileBase } from './path-mapper';
 
@@ -19,7 +19,7 @@ export function generateZodSchema(entity: ParseResult): string {
       lines.push(`import { ${schemaName} } from '${filePath}';`);
     }
   }
-  lines.push("");
+  lines.push('');
   lines.push(`export const ${entity.className}Schema = z.object({`);
 
   for (const field of entity.fields) {
@@ -28,23 +28,54 @@ export function generateZodSchema(entity: ParseResult): string {
     let zodType: string;
     if (field.relation) {
       const target = field.relation.targetClass;
-      const isArray = field.type.startsWith('List') || field.type.startsWith('Set') || field.type.startsWith('Collection');
-      // Use z.lazy for forward-references; array relations get wrapped
+      const isArray =
+        field.type.startsWith('List') ||
+        field.type.startsWith('Set') ||
+        field.type.startsWith('Collection');
       const ref = `z.lazy(() => ${target}Schema)`;
       zodType = isArray ? `z.array(${ref})` : ref;
     } else {
       zodType = javaToZod[field.type] ?? 'z.string()';
+      // Apply validation constraints on top of the base type
+      zodType = applyConstraints(zodType, field.constraints ?? {}, field.type);
     }
 
     const suffix = field.nullable ? '.optional()' : '';
     lines.push(`  ${field.name}: ${zodType}${suffix},`);
   }
 
-  lines.push("});");
-  lines.push("");
-  lines.push(
-    `export type ${entity.className} = z.infer<typeof ${entity.className}Schema>;`,
-  );
+  lines.push('});');
+  lines.push('');
+  lines.push(`export type ${entity.className} = z.infer<typeof ${entity.className}Schema>;`);
 
-  return lines.join("\n");
+  return lines.join('\n');
+}
+
+/**
+ * Append Zod chain methods based on extracted validation constraints.
+ */
+function applyConstraints(zodBase: string, constraints: ConstraintInfo, javaType: string): string {
+  let chain = zodBase;
+
+  // String-based constraints
+  if (chain.startsWith('z.string()')) {
+    if (constraints.email) chain += '.email()';
+    if (constraints.notBlank || constraints.notEmpty) chain += '.min(1)';
+    if (constraints.sizeMin !== undefined) chain += `.min(${constraints.sizeMin})`;
+    if (constraints.sizeMax !== undefined) chain += `.max(${constraints.sizeMax})`;
+    if (constraints.columnLength !== undefined && constraints.sizeMax === undefined) {
+      chain += `.max(${constraints.columnLength})`;
+    }
+    if (constraints.pattern) chain += `.regex(new RegExp('${constraints.pattern.replace(/'/g, "\\'")}'))`;
+  }
+
+  // Number-based constraints
+  if (chain.startsWith('z.number()')) {
+    if (constraints.positive) chain += '.positive()';
+    if (constraints.negative) chain += '.negative()';
+    if (constraints.min !== undefined && !constraints.positive) chain += `.min(${constraints.min})`;
+    if (constraints.max !== undefined) chain += `.max(${constraints.max})`;
+  }
+
+  return chain;
 }
