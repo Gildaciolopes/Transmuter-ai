@@ -1,18 +1,22 @@
 export type ClassStereotype =
-  | 'entity'
-  | 'service'
-  | 'repository'
-  | 'controller'
-  | 'component'
-  | 'dto'
-  | 'enum'
-  | 'exception-handler'
-  | 'configuration'
-  | 'skip';
+  | "entity"
+  | "service"
+  | "repository"
+  | "controller"
+  | "component"
+  | "dto"
+  | "enum"
+  | "exception-handler"
+  | "configuration"
+  | "skip";
 
-export type InheritanceStrategy = 'SINGLE_TABLE' | 'TABLE_PER_CLASS' | 'JOINED';
+export type InheritanceStrategy = "SINGLE_TABLE" | "TABLE_PER_CLASS" | "JOINED";
 
-export type RelationType = 'OneToMany' | 'ManyToOne' | 'ManyToMany' | 'OneToOne';
+export type RelationType =
+  | "OneToMany"
+  | "ManyToOne"
+  | "ManyToMany"
+  | "OneToOne";
 
 export interface RelationInfo {
   type: RelationType;
@@ -20,6 +24,10 @@ export interface RelationInfo {
   mappedBy?: string;
   fieldName: string;
   isOwning: boolean;
+  /** From @JoinColumn(name="x") — explicit FK column name */
+  fkColumnName?: string;
+  /** From @JoinTable(name="x") — explicit join table name for ManyToMany */
+  joinTableName?: string;
 }
 
 export interface EnumValue {
@@ -55,9 +63,15 @@ export interface FieldInfo {
   relation?: RelationInfo;
   isTransient: boolean;
   /** Extracted from @GeneratedValue(strategy=...) */
-  generationStrategy?: 'UUID' | 'SEQUENCE' | 'IDENTITY' | 'AUTO';
+  generationStrategy?: "UUID" | "SEQUENCE" | "IDENTITY" | "AUTO";
   /** Validation constraints from Bean Validation / @Column */
   constraints?: ConstraintInfo;
+  /** @Lob — large object (maps to Prisma Bytes, Zod z.string()) */
+  isLob?: boolean;
+  /** @Enumerated — field references a Java enum type */
+  isEnumField?: boolean;
+  /** @Column(insertable=false, updatable=false) — read-only computed field */
+  isReadOnly?: boolean;
 }
 
 export interface ParamInfo {
@@ -94,6 +108,14 @@ export interface ParseResult {
   idType?: string;
   /** HTTP methods extracted from controller/repository classes */
   methods?: MethodInfo[];
+  /** Composite unique constraints from @Table(uniqueConstraints=...) */
+  uniqueConstraints?: string[][];
+  /** Index definitions from @Table(indexes=...) */
+  indexes?: string[][];
+  /** @DiscriminatorColumn(name=...) for inheritance */
+  discriminatorColumn?: string;
+  /** @DiscriminatorValue("...") for inheritance */
+  discriminatorValue?: string;
 }
 
 export interface ProjectParseResponse {
@@ -119,17 +141,17 @@ export interface GeneratedFile {
   path: string;
   content: string;
   type:
-    | 'zod'
-    | 'nestjs-service'
-    | 'nestjs-controller'
-    | 'nestjs-module'
-    | 'nestjs-repository'
-    | 'nestjs-exception-filter'
-    | 'nestjs-component'
-    | 'nestjs-configuration'
-    | 'dto'
-    | 'enum'
-    | 'prisma-schema';
+    | "zod"
+    | "nestjs-service"
+    | "nestjs-controller"
+    | "nestjs-module"
+    | "nestjs-repository"
+    | "nestjs-exception-filter"
+    | "nestjs-component"
+    | "nestjs-configuration"
+    | "dto"
+    | "enum"
+    | "prisma-schema";
 }
 
 export interface FlaggedItem {

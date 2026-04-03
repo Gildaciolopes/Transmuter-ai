@@ -11,7 +11,6 @@ import java.util.Set;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParserConfiguration;
-import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
@@ -26,7 +25,6 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
-import com.github.javaparser.ast.type.Type;
 
 public class EntityParser {
 
@@ -50,6 +48,10 @@ public class EntityParser {
         public String mappedBy;
         public String fieldName;
         public boolean isOwning;
+        /** From @JoinColumn(name="x") — explicit FK column name */
+        public String fkColumnName;
+        /** From @JoinTable(name="x") — explicit join table name for ManyToMany */
+        public String joinTableName;
     }
 
     public static class EnumValue {
@@ -73,6 +75,12 @@ public class EntityParser {
         public String generationStrategy;
         /** Validation constraints extracted from Bean Validation / @Column annotations */
         public Map<String, Object> constraints = new HashMap<>();
+        /** @Lob — large object field */
+        public boolean isLob;
+        /** @Enumerated — field references a Java enum type */
+        public boolean isEnumField;
+        /** @Column(insertable=false, updatable=false) — read-only computed field */
+        public boolean isReadOnly;
 
         public FieldInfo(String name, String type, boolean nullable, List<String> annotations,
                          RelationInfo relation, boolean isTransient) {
@@ -122,6 +130,14 @@ public class EntityParser {
         public String idType;
         /** HTTP methods extracted from controller classes */
         public List<MethodInfo> methods = new ArrayList<>();
+        /** Composite unique constraints from @Table(uniqueConstraints=...) */
+        public List<List<String>> uniqueConstraints;
+        /** Index definitions from @Table(indexes=...) */
+        public List<List<String>> indexes;
+        /** @DiscriminatorColumn(name=...) for inheritance */
+        public String discriminatorColumn;
+        /** @DiscriminatorValue("...") for inheritance */
+        public String discriminatorValue;
 
         public ParseResult(String className, String packageName, String stereotype,
                            List<FieldInfo> fields, boolean isEntity) {
@@ -290,6 +306,34 @@ public class EntityParser {
                 // Extract validation constraints
                 extractConstraints(fieldInfo, field.getAnnotations());
 
+                // @Lob detection
+                if (annotations.contains("Lob")) {
+                    fieldInfo.isLob = true;
+                }
+
+                // @Enumerated detection
+                if (annotations.contains("Enumerated")) {
+                    fieldInfo.isEnumField = true;
+                }
+
+                // @Column(insertable=false, updatable=false) → read-only
+                field.getAnnotationByName("Column").ifPresent(ann -> {
+                    if (ann instanceof NormalAnnotationExpr normalAnn) {
+                        boolean insertable = true, updatable = true;
+                        for (MemberValuePair pair : normalAnn.getPairs()) {
+                            if ("insertable".equals(pair.getNameAsString()) && "false".equals(pair.getValue().toString())) insertable = false;
+                            if ("updatable".equals(pair.getNameAsString()) && "false".equals(pair.getValue().toString())) updatable = false;
+                        }
+                        if (!insertable && !updatable) fieldInfo.isReadOnly = true;
+                    }
+                });
+
+                // Optional<T> unwrapping: treat as nullable T
+                if (fieldType.startsWith("Optional<") && fieldType.endsWith(">")) {
+                    fieldInfo.type = fieldType.substring(9, fieldType.length() - 1).trim();
+                    fieldInfo.nullable = true;
+                }
+
                 fields.add(fieldInfo);
             }
         }
@@ -307,12 +351,14 @@ public class EntityParser {
             result.isMappedSuperclass = true;
         }
 
-        // @Table(name = "...")
+        // @Table(name = "...", uniqueConstraints = ..., indexes = ...)
         clazz.getAnnotationByName("Table").ifPresent(ann -> {
             if (ann instanceof NormalAnnotationExpr normalAnn) {
                 for (MemberValuePair pair : normalAnn.getPairs()) {
-                    if (pair.getNameAsString().equals("name")) {
-                        result.tableName = pair.getValue().toString().replace("\"", "");
+                    switch (pair.getNameAsString()) {
+                        case "name" -> result.tableName = pair.getValue().toString().replace("\"", "");
+                        case "uniqueConstraints" -> result.uniqueConstraints = extractConstraintColumns(pair.getValue().toString());
+                        case "indexes" -> result.indexes = extractIndexColumns(pair.getValue().toString());
                     }
                 }
             }
@@ -345,9 +391,37 @@ public class EntityParser {
             }
         });
 
+        // @DiscriminatorColumn(name=...)
+        clazz.getAnnotationByName("DiscriminatorColumn").ifPresent(ann -> {
+            if (ann instanceof NormalAnnotationExpr normalAnn) {
+                for (MemberValuePair pair : normalAnn.getPairs()) {
+                    if ("name".equals(pair.getNameAsString())) {
+                        result.discriminatorColumn = pair.getValue().toString().replace("\"", "");
+                    }
+                }
+            }
+        });
+
+        // @DiscriminatorValue("...")
+        clazz.getAnnotationByName("DiscriminatorValue").ifPresent(ann -> {
+            if (ann instanceof SingleMemberAnnotationExpr singleAnn) {
+                result.discriminatorValue = singleAnn.getMemberValue().toString().replace("\"", "");
+            }
+        });
+
         // Extract HTTP methods for controllers
         if ("controller".equals(result.stereotype)) {
             result.methods = extractHttpMethods(clazz);
+        }
+
+        // Extract method signatures for @Component stubs
+        if ("component".equals(result.stereotype)) {
+            result.methods = extractPublicMethodSignatures(clazz);
+        }
+
+        // Extract @ExceptionHandler methods for @ControllerAdvice
+        if ("exception-handler".equals(result.stereotype)) {
+            result.methods = extractExceptionHandlerMethods(clazz);
         }
 
         return result;
@@ -685,6 +759,28 @@ public class EntityParser {
             }
         }
 
+        // Extract @JoinColumn(name="x")
+        field.getAnnotationByName("JoinColumn").ifPresent(ann -> {
+            if (ann instanceof NormalAnnotationExpr normalAnn) {
+                for (MemberValuePair pair : normalAnn.getPairs()) {
+                    if ("name".equals(pair.getNameAsString())) {
+                        rel.fkColumnName = pair.getValue().toString().replace("\"", "");
+                    }
+                }
+            }
+        });
+
+        // Extract @JoinTable(name="x")
+        field.getAnnotationByName("JoinTable").ifPresent(ann -> {
+            if (ann instanceof NormalAnnotationExpr normalAnn) {
+                for (MemberValuePair pair : normalAnn.getPairs()) {
+                    if ("name".equals(pair.getNameAsString())) {
+                        rel.joinTableName = pair.getValue().toString().replace("\"", "");
+                    }
+                }
+            }
+        });
+
         rel.isOwning = switch (relationType) {
             case "ManyToOne" -> true;
             case "OneToOne"  -> rel.mappedBy == null;
@@ -737,6 +833,146 @@ public class EntityParser {
             if (NOT_NULL_ANNOTATIONS.contains(ann)) return false;
         }
         return true;
+    }
+
+    // ─────────── @UniqueConstraint / @Index column extraction ───────────
+
+    /**
+     * Parse @UniqueConstraint(columnNames = {"col1", "col2"}) from the @Table annotation value string.
+     * Input is the raw toString() of the annotation value, e.g.:
+     *   @UniqueConstraint(columnNames = {"plate", "model_year"})
+     * or an array of them.
+     */
+    private List<List<String>> extractConstraintColumns(String raw) {
+        List<List<String>> result = new ArrayList<>();
+        // Find all columnNames = {...} blocks
+        int idx = 0;
+        while (idx < raw.length()) {
+            int start = raw.indexOf("columnNames", idx);
+            if (start < 0) break;
+            int braceStart = raw.indexOf('{', start);
+            if (braceStart < 0) break;
+            int braceEnd = raw.indexOf('}', braceStart);
+            if (braceEnd < 0) break;
+            String inner = raw.substring(braceStart + 1, braceEnd);
+            List<String> cols = new ArrayList<>();
+            for (String part : inner.split(",")) {
+                String col = part.trim().replace("\"", "");
+                if (!col.isEmpty()) cols.add(col);
+            }
+            if (!cols.isEmpty()) result.add(cols);
+            idx = braceEnd + 1;
+        }
+        return result.isEmpty() ? null : result;
+    }
+
+    /**
+     * Parse @Index(columnList = "col1, col2") from the @Table annotation value string.
+     */
+    private List<List<String>> extractIndexColumns(String raw) {
+        List<List<String>> result = new ArrayList<>();
+        int idx = 0;
+        while (idx < raw.length()) {
+            int start = raw.indexOf("columnList", idx);
+            if (start < 0) break;
+            int eqIdx = raw.indexOf('=', start);
+            if (eqIdx < 0) break;
+            // Find the value — it's typically a string literal "col1, col2"
+            int quoteStart = raw.indexOf('"', eqIdx);
+            if (quoteStart < 0) break;
+            int quoteEnd = raw.indexOf('"', quoteStart + 1);
+            if (quoteEnd < 0) break;
+            String inner = raw.substring(quoteStart + 1, quoteEnd);
+            List<String> cols = new ArrayList<>();
+            for (String part : inner.split(",")) {
+                // strip optional ASC/DESC suffix
+                String col = part.trim().replaceAll("\\s+(ASC|DESC|asc|desc)$", "");
+                if (!col.isEmpty()) cols.add(col);
+            }
+            if (!cols.isEmpty()) result.add(cols);
+            idx = quoteEnd + 1;
+        }
+        return result.isEmpty() ? null : result;
+    }
+
+    // ─────────── Method extraction for @Component and @ControllerAdvice ───────────
+
+    /**
+     * Extract all public (non-constructor) method signatures from a class.
+     * Used for @Component stub generation with typed method stubs.
+     */
+    private List<MethodInfo> extractPublicMethodSignatures(ClassOrInterfaceDeclaration clazz) {
+        List<MethodInfo> methods = new ArrayList<>();
+        for (MethodDeclaration method : clazz.getMethods()) {
+            if (method.isPrivate() || method.isProtected()) continue;
+
+            MethodInfo info = new MethodInfo();
+            info.name = method.getNameAsString();
+            info.returnType = method.getType().asString();
+
+            for (Parameter param : method.getParameters()) {
+                ParamInfo pInfo = new ParamInfo();
+                pInfo.name = param.getNameAsString();
+                pInfo.type = param.getType().asString();
+                pInfo.source = "arg";
+                info.params.add(pInfo);
+            }
+
+            methods.add(info);
+        }
+        return methods;
+    }
+
+    /**
+     * Extract @ExceptionHandler methods from a @ControllerAdvice class.
+     * Captures the exception class and any @ResponseStatus annotation.
+     */
+    private List<MethodInfo> extractExceptionHandlerMethods(ClassOrInterfaceDeclaration clazz) {
+        List<MethodInfo> methods = new ArrayList<>();
+        for (MethodDeclaration method : clazz.getMethods()) {
+            boolean isHandler = method.getAnnotationByName("ExceptionHandler").isPresent();
+            if (!isHandler) continue;
+
+            MethodInfo info = new MethodInfo();
+            info.name = method.getNameAsString();
+            info.returnType = method.getType().asString();
+
+            // Extract the exception class from @ExceptionHandler(SomeException.class)
+            method.getAnnotationByName("ExceptionHandler").ifPresent(ann -> {
+                String val = ann.toString();
+                // Parse "SomeException.class" from the annotation
+                int dotClass = val.indexOf(".class");
+                if (dotClass > 0) {
+                    int start = val.lastIndexOf('(', dotClass);
+                    if (start >= 0) {
+                        info.bodyType = val.substring(start + 1, dotClass).trim();
+                    }
+                }
+            });
+
+            // Extract @ResponseStatus(HttpStatus.XXX) if present
+            method.getAnnotationByName("ResponseStatus").ifPresent(ann -> {
+                String val = ann.toString();
+                // Extract the status code name
+                if (val.contains("HttpStatus.")) {
+                    int idx = val.indexOf("HttpStatus.") + 11;
+                    int end = val.indexOf(')', idx);
+                    if (end < 0) end = val.length();
+                    info.httpMethod = val.substring(idx, end).trim();
+                }
+            });
+
+            for (Parameter param : method.getParameters()) {
+                ParamInfo pInfo = new ParamInfo();
+                pInfo.name = param.getNameAsString();
+                pInfo.type = param.getType().asString();
+                pInfo.source = "arg";
+                info.params.add(pInfo);
+            }
+
+            methods.add(info);
+        }
+        return methods;
     }
 
     // ─────────── Request DTOs ───────────
