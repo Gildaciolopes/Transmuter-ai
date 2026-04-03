@@ -8,10 +8,17 @@ const LANGUAGES = [
   { code: "es", label: "Espanol", flag: "ES" },
   { code: "fr", label: "Francais", flag: "FR" },
   { code: "de", label: "Deutsch", flag: "DE" },
-  { code: "ja", label: "Japanese", flag: "JA" },
-  { code: "zh-CN", label: "Chinese", flag: "ZH" },
-  { code: "ko", label: "Korean", flag: "KO" },
 ] as const;
+
+type LanguageCode = (typeof LANGUAGES)[number]["code"];
+
+const SUPPORTED_LANGUAGE_CODES: readonly LanguageCode[] = LANGUAGES.map(
+  (lang) => lang.code,
+);
+
+function isSupportedLanguage(code: string): code is LanguageCode {
+  return SUPPORTED_LANGUAGE_CODES.includes(code as LanguageCode);
+}
 
 declare global {
   interface Window {
@@ -117,6 +124,11 @@ function setGoogleTranslateLanguage(langCode: string) {
   window.location.reload();
 }
 
+function setDocumentLanguage(langCode: string) {
+  document.documentElement.lang = langCode;
+  document.documentElement.setAttribute("data-ui-lang", langCode);
+}
+
 export function LanguageSwitcher() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState("en");
@@ -145,7 +157,16 @@ export function LanguageSwitcher() {
     };
 
     const cookieLang = readGoogleTranslateCookie();
-    if (cookieLang) setCurrent(cookieLang);
+    if (cookieLang && isSupportedLanguage(cookieLang)) {
+      setCurrent(cookieLang);
+      setDocumentLanguage(cookieLang);
+    } else {
+      if (cookieLang) {
+        clearGoogleTranslateCookie();
+      }
+      setCurrent("en");
+      setDocumentLanguage("en");
+    }
 
     if (!initializeGoogleTranslateElement()) {
       injectGoogleTranslateScript();
@@ -176,6 +197,7 @@ export function LanguageSwitcher() {
 
   function handleSelect(code: string) {
     setCurrent(code);
+    setDocumentLanguage(code);
     setOpen(false);
     if (code === "en") {
       clearGoogleTranslateCookie();

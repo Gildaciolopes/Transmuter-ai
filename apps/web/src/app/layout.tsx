@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${dmSans.variable} ${syneFont.variable} ${dmSans.className} bg-tm text-tm min-h-screen antialiased`}
+        className={`${dmSans.variable} ${syneFont.variable} bg-tm text-tm min-h-screen antialiased`}
       >
         <Providers>{children}</Providers>
       </body>

@@ -42,27 +42,35 @@
   .bg-tm {
     background-color: rgb(var(--tm-bg));
   }
+
   .bg-tm-nav {
     background-color: rgb(var(--tm-bg-nav) / 0.8);
   }
+
   .bg-tm-card {
     background-color: rgb(var(--tm-bg-card));
   }
+
   .bg-tm-surface {
     background-color: rgb(var(--tm-bg-surface));
   }
+
   .bg-tm-subtle {
     background-color: rgb(var(--tm-bg-subtle));
   }
+
   .text-tm {
     color: rgb(var(--tm-text));
   }
+
   .text-tm-secondary {
     color: rgb(var(--tm-text-secondary));
   }
+
   .text-tm-muted {
     color: rgb(var(--tm-text-muted));
   }
+
   .border-tm {
     border-color: rgb(var(--tm-border) / var(--tm-border-alpha));
   }
@@ -115,4 +123,10 @@ html,
 body {
   top: 0 !important;
   margin-top: 0 !important;
+}
+
+body {
+  font-family:
+    var(--font-dm-sans), "Noto Sans", "Helvetica Neue", Arial, "Segoe UI",
+    system-ui, sans-serif !important;
 }
