@@ -95,3 +95,24 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(128, 128, 128, 0.35);
 }
+
+/* Hide Google Translate top banner injected by the widget.
+   Translation still works via our custom language switcher. */
+iframe.goog-te-banner-frame,
+iframe.skiptranslate,
+.goog-te-banner-frame.skiptranslate,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.VIpgJd-ZVi9od-ORHb-OEVmcd,
+.VIpgJd-yAWNEb-L7lbkb,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+body > .skiptranslate {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+html,
+body {
+  top: 0 !important;
+  margin-top: 0 !important;
+}

@@ -30,33 +30,90 @@ declare global {
   }
 }
 
+const GOOGLE_TRANSLATE_SCRIPT_ID = "google-translate-script";
+const GOOGLE_TRANSLATE_HIDDEN_SELECTORS = [
+  "iframe.goog-te-banner-frame",
+  "iframe.skiptranslate",
+  ".goog-te-banner-frame.skiptranslate",
+  ".goog-te-balloon-frame",
+  "#goog-gt-tt",
+  ".VIpgJd-ZVi9od-ORHb-OEVmcd",
+  ".VIpgJd-yAWNEb-L7lbkb",
+  ".VIpgJd-ZVi9od-aZ2wEe-wOHMyf",
+  "body > .skiptranslate",
+].join(",");
+
+function hideGoogleTranslateUI() {
+  const nodes = document.querySelectorAll<HTMLElement>(
+    GOOGLE_TRANSLATE_HIDDEN_SELECTORS,
+  );
+  for (const node of nodes) {
+    node.style.setProperty("display", "none", "important");
+    node.style.setProperty("visibility", "hidden", "important");
+    node.setAttribute("aria-hidden", "true");
+  }
+
+  document.documentElement.style.setProperty("top", "0px", "important");
+  document.documentElement.style.setProperty("margin-top", "0px", "important");
+
+  if (document.body) {
+    document.body.style.setProperty("top", "0px", "important");
+    document.body.style.setProperty("margin-top", "0px", "important");
+  }
+}
+
+function readGoogleTranslateCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/]+\/([^;]+)/);
+  return match?.[1] ?? null;
+}
+
+function setGoogleTranslateCookie(langCode: string) {
+  const value = `/en/${langCode}`;
+  document.cookie = `googtrans=${value};path=/;max-age=31536000;SameSite=Lax`;
+
+  const hostname = window.location.hostname;
+  if (hostname.includes(".")) {
+    document.cookie = `googtrans=${value};path=/;domain=.${hostname};max-age=31536000;SameSite=Lax`;
+  }
+}
+
+function clearGoogleTranslateCookie() {
+  document.cookie =
+    "googtrans=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT;SameSite=Lax";
+
+  const hostname = window.location.hostname;
+  if (hostname.includes(".")) {
+    document.cookie = `googtrans=;path=/;domain=.${hostname};expires=Thu, 01 Jan 1970 00:00:00 GMT;SameSite=Lax`;
+  }
+}
+
 function injectGoogleTranslateScript() {
-  if (document.getElementById("google-translate-script")) return;
+  if (document.getElementById(GOOGLE_TRANSLATE_SCRIPT_ID)) return;
   const script = document.createElement("script");
-  script.id = "google-translate-script";
+  script.id = GOOGLE_TRANSLATE_SCRIPT_ID;
   script.src =
     "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
   script.async = true;
   document.head.appendChild(script);
 }
 
-function setGoogleTranslateLanguage(langCode: string) {
-  // Google Translate stores the selection in a cookie and a hidden <select>
-  const frame = document.querySelector<HTMLIFrameElement>(
-    "iframe.goog-te-menu-frame",
+function initializeGoogleTranslateElement(): boolean {
+  if (!window.google?.translate) return false;
+
+  const container = document.getElementById("google_translate_element");
+  if (!container) return false;
+
+  container.innerHTML = "";
+  new window.google.translate.TranslateElement(
+    { pageLanguage: "en", autoDisplay: false },
+    "google_translate_element",
   );
-  if (frame?.contentDocument) {
-    const links = frame.contentDocument.querySelectorAll("a");
-    for (const link of links) {
-      if (link.getAttribute("href")?.includes(`#${langCode}`)) {
-        link.click();
-        return;
-      }
-    }
-  }
-  // Fallback: set the cookie directly
-  document.cookie = `googtrans=/en/${langCode};path=/;`;
-  document.cookie = `googtrans=/en/${langCode};path=/;domain=${window.location.hostname}`;
+
+  return true;
+}
+
+function setGoogleTranslateLanguage(langCode: string) {
+  setGoogleTranslateCookie(langCode);
   window.location.reload();
 }
 
@@ -66,20 +123,45 @@ export function LanguageSwitcher() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load Google Translate (hidden) — we control the UI ourselves
-    window.googleTranslateElementInit = () => {
-      if (window.google?.translate) {
-        new window.google.translate.TranslateElement(
-          { pageLanguage: "en", autoDisplay: false },
-          "google_translate_element",
-        );
-      }
-    };
-    injectGoogleTranslateScript();
+    // Load Google Translate (hidden) and keep it resilient across route changes.
+    let pollId: number | undefined;
+    let hideId: number | undefined;
+    let observer: MutationObserver | undefined;
 
-    // Read current language from cookie
-    const match = document.cookie.match(/googtrans=\/en\/(\S+)/);
-    if (match?.[1]) setCurrent(match[1]);
+    hideGoogleTranslateUI();
+    hideId = window.setInterval(hideGoogleTranslateUI, 400);
+
+    observer = new MutationObserver(() => {
+      hideGoogleTranslateUI();
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    window.googleTranslateElementInit = () => {
+      initializeGoogleTranslateElement();
+      hideGoogleTranslateUI();
+    };
+
+    const cookieLang = readGoogleTranslateCookie();
+    if (cookieLang) setCurrent(cookieLang);
+
+    if (!initializeGoogleTranslateElement()) {
+      injectGoogleTranslateScript();
+      pollId = window.setInterval(() => {
+        if (initializeGoogleTranslateElement()) {
+          hideGoogleTranslateUI();
+          if (pollId) window.clearInterval(pollId);
+        }
+      }, 300);
+    }
+
+    return () => {
+      if (pollId) window.clearInterval(pollId);
+      if (hideId) window.clearInterval(hideId);
+      if (observer) observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -96,10 +178,7 @@ export function LanguageSwitcher() {
     setCurrent(code);
     setOpen(false);
     if (code === "en") {
-      // Reset to original
-      document.cookie =
-        "googtrans=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      document.cookie = `googtrans=;path=/;domain=${window.location.hostname};expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      clearGoogleTranslateCookie();
       window.location.reload();
       return;
     }

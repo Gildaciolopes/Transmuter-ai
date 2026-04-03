@@ -893,7 +893,7 @@ export default function ConverterPage() {
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-10 border-b border-tm bg-tm-nav backdrop-blur-xl top-0">
+      <nav className="relative z-50 border-b border-tm bg-tm-nav backdrop-blur-xl top-0">
         <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
@@ -921,7 +921,7 @@ export default function ConverterPage() {
       </nav>
 
       {/* Main content */}
-      <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 py-8">
+      <main className="relative z-0 flex-1 max-w-[1440px] w-full mx-auto px-6 py-8">
         {/* Page header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
