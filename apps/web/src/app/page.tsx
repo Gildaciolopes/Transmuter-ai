@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 // ─── Data ───────────────────────────────────────────────────────────────────
 
@@ -321,9 +323,9 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="relative bg-gray-950">
+    <div className="relative bg-tm">
       {/* ─── STICKY NAV ──────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.05] bg-gray-950/80 backdrop-blur-md">
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-tm bg-tm-nav backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
           {/* Wordmark */}
           <Link
@@ -337,25 +339,29 @@ export default function LandingPage() {
           <div className="hidden sm:flex items-center gap-8">
             <a
               href="#demo"
-              className="text-sm text-gray-400 hover:text-gray-100 transition-colors"
+              className="text-sm text-tm-secondary hover:text-tm transition-colors"
             >
               Converter
             </a>
             <a
               href="#pricing"
-              className="text-sm text-gray-400 hover:text-gray-100 transition-colors"
+              className="text-sm text-tm-secondary hover:text-tm transition-colors"
             >
               Pricing
             </a>
           </div>
 
-          {/* CTA */}
-          <Link
-            href="/converter"
-            className="shrink-0 px-4 py-1.5 rounded-lg text-sm font-semibold border border-white/[0.09] text-white hover:shadow-[0_0_20px_rgba(139,92,246,0.35)] transition-all"
-          >
-            Try Free
-          </Link>
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            <ThemeToggle />
+            <LanguageSwitcher />
+            <Link
+              href="/converter"
+              className="px-4 py-1.5 rounded-lg text-sm font-semibold border border-tm text-tm hover:shadow-[0_0_20px_rgba(139,92,246,0.35)] transition-all"
+            >
+              Try Free
+            </Link>
+          </div>
         </div>
       </nav>
 

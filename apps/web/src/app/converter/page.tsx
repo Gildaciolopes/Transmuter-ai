@@ -29,6 +29,8 @@ import {
   FileArchive,
   X,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 // ─────────── Samples ───────────
 
@@ -573,7 +575,8 @@ async function downloadZip(result: ProjectResult) {
 
 function StatsRow({ result }: { result: ProjectResult }) {
   const { converted, stubs, skipped, flagged } = result.report;
-  const totalFiles = result.files.filter((f) => f.type !== "prisma-schema").length + 1;
+  const totalFiles =
+    result.files.filter((f) => f.type !== "prisma-schema").length + 1;
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 mb-3">
@@ -881,36 +884,39 @@ export default function ConverterPage() {
   const lineCount = code.split("\n").length;
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-gray-950">
+    <div className="relative min-h-screen flex flex-col bg-tm">
       {/* Background atmosphere */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden dark:opacity-100 opacity-30">
         <div className="absolute top-0 left-1/4 w-[700px] h-[400px] rounded-full bg-blue-600/[0.04] blur-[130px]" />
         <div className="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] rounded-full bg-violet-600/[0.05] blur-[130px]" />
         <div className="absolute top-1/2 left-0 w-[300px] h-[300px] rounded-full bg-indigo-600/[0.03] blur-[100px]" />
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-10 border-b border-white/[0.04] bg-gray-950/80 backdrop-blur-xl top-0">
+      <nav className="relative z-10 border-b border-tm bg-tm-nav backdrop-blur-xl top-0">
         <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors text-sm"
+              className="flex items-center gap-2 text-tm-muted hover:text-tm-secondary transition-colors text-sm"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">Back</span>
             </Link>
-            <div className="h-4 w-px bg-white/[0.06]" />
+            <div className="h-4 w-px border-r border-tm" />
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
                 Transmuter.ai
               </span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-700" />
-              <span className="text-sm text-gray-400">Converter</span>
+              <ChevronRight className="w-3.5 h-3.5 text-tm-muted" />
+              <span className="text-sm text-tm-secondary">Converter</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3"></div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <LanguageSwitcher />
+          </div>
         </div>
       </nav>
 

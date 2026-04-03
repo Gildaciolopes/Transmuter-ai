@@ -2,6 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme tokens ──────────────────────────────────────────────────────── */
+/* Used by both landing page and converter for main structural surfaces.
+   Inner code/terminal areas stay dark regardless of theme.                 */
+
+:root {
+  --tm-bg: 255 255 255;
+  --tm-bg-nav: 255 255 255;
+  --tm-bg-card: 255 255 255;
+  --tm-bg-surface: 249 250 251;
+  --tm-bg-subtle: 243 244 246;
+  --tm-text: 17 24 39;
+  --tm-text-secondary: 75 85 99;
+  --tm-text-muted: 156 163 175;
+  --tm-border: 0 0 0;
+  --tm-border-alpha: 0.08;
+  --tm-glow-alpha: 0.06;
+  --tm-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.dark {
+  --tm-bg: 3 7 18;
+  --tm-bg-nav: 3 7 18;
+  --tm-bg-card: 3 7 18;
+  --tm-bg-surface: 3 7 18;
+  --tm-bg-subtle: 17 24 39;
+  --tm-text: 243 244 246;
+  --tm-text-secondary: 156 163 175;
+  --tm-text-muted: 107 114 128;
+  --tm-border: 255 255 255;
+  --tm-border-alpha: 0.06;
+  --tm-glow-alpha: 0.04;
+  --tm-shadow: none;
+}
+
+/* ─── Semantic utility layer ────────────────────────────────────────────── */
+
+@layer utilities {
+  .bg-tm {
+    background-color: rgb(var(--tm-bg));
+  }
+  .bg-tm-nav {
+    background-color: rgb(var(--tm-bg-nav) / 0.8);
+  }
+  .bg-tm-card {
+    background-color: rgb(var(--tm-bg-card));
+  }
+  .bg-tm-surface {
+    background-color: rgb(var(--tm-bg-surface));
+  }
+  .bg-tm-subtle {
+    background-color: rgb(var(--tm-bg-subtle));
+  }
+  .text-tm {
+    color: rgb(var(--tm-text));
+  }
+  .text-tm-secondary {
+    color: rgb(var(--tm-text-secondary));
+  }
+  .text-tm-muted {
+    color: rgb(var(--tm-text-muted));
+  }
+  .border-tm {
+    border-color: rgb(var(--tm-border) / var(--tm-border-alpha));
+  }
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+
 html {
   scroll-behavior: smooth;
 }
@@ -20,10 +88,10 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(128, 128, 128, 0.2);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(128, 128, 128, 0.35);
 }
